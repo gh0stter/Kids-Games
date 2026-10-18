@@ -52,4 +52,12 @@ export const GAMES: GameInfo[] = [
     color: 'var(--green)',
     load: () => import('./games/draw/draw').then((m) => m.Draw),
   },
+  {
+    path: 'tsunami',
+    title: '海啸来啦',
+    emoji: '🌊',
+    color: 'var(--yellow)',
+    intro: '盖高高的楼，挡住海啸！',
+    load: () => import('./games/tsunami/tsunami').then((m) => m.Tsunami),
+  },
 ];

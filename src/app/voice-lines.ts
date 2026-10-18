@@ -6,6 +6,7 @@ import * as count from './games/count/count-data';
 import * as draw from './games/draw/draw-data';
 import * as memory from './games/memory/memory-data';
 import * as shapes from './games/shapes/shapes-data';
+import * as tsunami from './games/tsunami/tsunami-data';
 import * as menu from './menu/menu-data';
 
 /**
@@ -21,6 +22,7 @@ export const VOICE_LINES: string[] = [
   ...draw.VOICE_LINES,
   ...memory.VOICE_LINES,
   ...shapes.VOICE_LINES,
+  ...tsunami.VOICE_LINES,
 ];
 
 /** 夸奖类的话，用更活泼的声音 */
@@ -30,4 +32,5 @@ export const CHEER_LINES: string[] = [
   ...count.CHEER_LINES,
   ...memory.CHEER_LINES,
   ...shapes.CHEER_LINES,
+  ...tsunami.CHEER_LINES,
 ];

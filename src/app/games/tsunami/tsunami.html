@@ -1,0 +1,49 @@
+<app-game-shell>
+  <div class="stage"><canvas #canvas></canvas></div>
+
+  <!-- 当前这栋楼有几层 -->
+  <div #label class="floor-label paper"></div>
+
+  @if (caption() && phase() !== 'build') {
+    <div class="caption paper pop-in">{{ caption() }}</div>
+  }
+
+  @if (phase() === 'build') {
+    <div class="tools">
+      @for (t of tools; track t.tool) {
+        <button
+          class="tool"
+          [class.sel]="tool() === t.tool"
+          [attr.aria-label]="t.name"
+          (click)="choose(t.tool)"
+        >
+          {{ t.emoji }}
+        </button>
+      }
+      <div class="sep"></div>
+      <button class="tool" aria-label="向左转" (click)="rotate(-1)">↺</button>
+      <button class="tool" aria-label="向右转" (click)="rotate(1)">↻</button>
+      <div class="sep"></div>
+      <button
+        class="tool clear"
+        [class.confirm]="confirmClear()"
+        aria-label="全部清空"
+        (click)="clear()"
+      >
+        {{ confirmClear() ? '❓' : '🗑️' }}
+      </button>
+    </div>
+    <button class="wave-btn" aria-label="海啸来啦" (click)="tsunami()">🌊</button>
+  }
+
+  @if (phase() === 'result' && result(); as r) {
+    <div class="result paper pop-in">
+      <span class="name-tag">小狸</span>
+      <div class="counts">
+        <span>✅ 保住 {{ r.saved }}</span>
+        <span>🌊 冲走 {{ r.lost }}</span>
+      </div>
+      <button class="rebuild" (click)="rebuild()">🔁 重新盖起来</button>
+    </div>
+  }
+</app-game-shell>

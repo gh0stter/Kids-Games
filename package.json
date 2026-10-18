@@ -23,12 +23,14 @@
     "@angular/router": "^22.2.0",
     "@angular/service-worker": "^22.2.0",
     "rxjs": "~7.8.0",
+    "three": "^0.180.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
     "@angular/build": "^22.2.3",
     "@angular/cli": "^22.2.3",
     "@angular/compiler-cli": "^22.2.0",
+    "@types/three": "^0.180.0",
     "prettier": "^3.8.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2"

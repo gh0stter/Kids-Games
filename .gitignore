@@ -45,3 +45,6 @@ Thumbs.db
 
 # Python venv（edge-tts，npm run voice:setup）
 /.venv
+
+# G 盘上同一个仓库里的部署目录（npm run deploy 输出）
+/site

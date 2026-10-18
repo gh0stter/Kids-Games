@@ -1,0 +1,2 @@
+# Windows（G 盘）和 WSL 两边都用 LF，避免换行符来回变化
+* text=auto eol=lf

@@ -1,0 +1,185 @@
+/* 全局样式：针对 iPad 触屏、防误触缩放，以及各游戏共用的动画 */
+:root {
+  /* 动森风：奶油色纸张 + 棕色文字 + 柔和的颜色 */
+  --bg: #f8f4e3;
+  --paper: #fffbea;
+  --paper-edge: #e7dcc0;
+  --ink: #725d42;
+  --ink-soft: #a48e6e;
+  --sky: #bfe7f2;
+  --grass: #7dc67a;
+  --grass-dark: #5fae5c;
+  --red: #f47c7c;
+  --orange: #f8a24b;
+  --yellow: #f8d248;
+  --green: #6cc59a;
+  --blue: #6aaee8;
+  --purple: #b08be0;
+  --pink: #f290c0;
+  --radius: 34px;
+  --shadow: 0 8px 0 rgba(114, 93, 66, 0.18);
+  --shadow-pressed: 0 2px 0 rgba(114, 93, 66, 0.18);
+  /* 按钮底部的"厚度" */
+  --bevel: inset 0 -8px 0 rgba(0, 0, 0, 0.08);
+  --font:
+    'ChillRound', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+/* 寒蝉圆黑体，只包含游戏里用到的字（npm run font 生成） */
+@font-face {
+  font-family: 'ChillRound';
+  src: url('/fonts/chill-round.woff2') format('woff2');
+  font-display: block;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  /* 天空 + 白色圆点 */
+  background:
+    radial-gradient(circle at 20px 20px, rgba(255, 255, 255, 0.55) 6px, transparent 7px) 0 0 / 40px
+      40px,
+    linear-gradient(var(--sky), #e6f6ee 70%);
+}
+
+/* 奶油色纸片：面板、标签、圆按钮共用 */
+.paper {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 6px 0 var(--paper-edge);
+}
+
+/* 草地：固定在底部，上面一排圆弧。菜单和各游戏共用 */
+.ground {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120px;
+  background: var(--grass);
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -28px;
+    height: 30px;
+    background: radial-gradient(circle at 30px 30px, var(--grass) 29px, transparent 30px) 0 0 / 60px
+      60px repeat-x;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 20px 0 0;
+    background: radial-gradient(ellipse 10px 5px at 20px 20px, var(--grass-dark) 98%, transparent) 0
+      0 / 90px 50px;
+    opacity: 0.6;
+  }
+}
+
+/* 名牌：贴在气泡或面板左上角的小彩色标签 */
+.name-tag {
+  padding: 3px 16px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 20px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+app-root {
+  display: block;
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 庆祝彩带（由 Celebration 服务直接插入 body） */
+.confetti {
+  position: fixed;
+  top: -60px;
+  z-index: 90;
+  font-size: 44px;
+  pointer-events: none;
+  animation: fall linear forwards;
+}
+
+.shake {
+  animation: shake 0.4s;
+}
+
+.pop-in {
+  animation: pop-in 0.35s ease-out;
+}
+
+@keyframes fall {
+  to {
+    transform: translateY(115vh) rotate(720deg);
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-14px);
+  }
+  40%,
+  80% {
+    transform: translateX(14px);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.3);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

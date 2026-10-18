@@ -1,0 +1,138 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+/* 慢慢飘过的白云 */
+.cloud {
+  position: absolute;
+  width: 180px;
+  height: 56px;
+  border-radius: 999px;
+  background: #fff;
+  opacity: 0.9;
+  animation: drift linear infinite;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: inherit;
+  }
+
+  &::before {
+    left: 30px;
+    top: -34px;
+    width: 70px;
+    height: 70px;
+  }
+
+  &::after {
+    left: 80px;
+    top: -50px;
+    width: 86px;
+    height: 86px;
+  }
+
+  &.c1 {
+    top: 18%;
+    animation-duration: 70s;
+    animation-delay: -10s;
+  }
+
+  &.c2 {
+    top: 42%;
+    transform: scale(0.7);
+    animation-duration: 90s;
+    animation-delay: -55s;
+  }
+
+  &.c3 {
+    top: 64%;
+    transform: scale(0.85);
+    animation-duration: 80s;
+    animation-delay: -30s;
+  }
+}
+
+@keyframes drift {
+  from {
+    left: -240px;
+  }
+  to {
+    left: 110%;
+  }
+}
+
+.sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.balloon {
+  position: absolute;
+  width: 130px;
+  height: 160px;
+  border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
+  box-shadow: inset -14px -18px 0 rgba(0, 0, 0, 0.1);
+
+  /* 高光 */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 26px;
+    top: 26px;
+    width: 26px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+    transform: rotate(20deg);
+  }
+
+  /* 绳子 */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 63px;
+    top: 158px;
+    width: 3px;
+    height: 70px;
+    background: var(--ink-soft);
+  }
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+}
+
+.burst {
+  position: absolute;
+  font-size: 42px;
+  pointer-events: none;
+  animation: burst 0.5s ease-out forwards;
+}
+
+@keyframes burst {
+  to {
+    transform: translate(var(--dx), var(--dy)) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.score {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 14px);
+  right: calc(env(safe-area-inset-right) + 20px);
+  z-index: 40;
+  padding: 6px 28px;
+  border-radius: 999px;
+  font-size: 46px;
+}

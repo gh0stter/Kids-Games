@@ -1,0 +1,17 @@
+<app-game-shell (start)="newGame()">
+  <div
+    class="board"
+    [style.--size]="size() + 'px'"
+    [style.gap.px]="gap"
+    [style.grid-template-columns]="'repeat(' + cols() + ', ' + size() + 'px)'"
+  >
+    @for (card of cards(); track card.id) {
+      <div class="card pop-in" [class]="card.state()" (click)="flip(card)">
+        <div class="inner">
+          <div class="face back"><span>🍀</span></div>
+          <div class="face front paper">{{ card.animal.emoji }}</div>
+        </div>
+      </div>
+    }
+  </div>
+</app-game-shell>

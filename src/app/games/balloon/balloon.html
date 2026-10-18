@@ -1,0 +1,33 @@
+<app-game-shell (start)="start()">
+  <div class="cloud c1"></div>
+  <div class="cloud c2"></div>
+  <div class="cloud c3"></div>
+  <div class="ground"></div>
+  <div class="sky" #sky>
+    @for (b of balloons(); track b.id) {
+      <div
+        class="balloon"
+        [style.background]="b.color"
+        [style.transform]="transform(b)"
+        (pointerdown)="pop(b, $event)"
+      >
+        <div class="face">{{ b.face }}</div>
+      </div>
+    }
+    @for (p of bursts(); track p.id) {
+      <div
+        class="burst"
+        [style.left.px]="p.x"
+        [style.top.px]="p.y"
+        [style.--dx]="p.dx + 'px'"
+        [style.--dy]="p.dy + 'px'"
+      >
+        {{ p.char }}
+      </div>
+    }
+  </div>
+  <!-- 按分数 track：分数变化时重建元素，弹跳动画会重新播放 -->
+  @for (s of [score()]; track s) {
+    <div class="score paper pop-in">🎈 {{ s }}</div>
+  }
+</app-game-shell>

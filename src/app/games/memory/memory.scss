@@ -1,0 +1,70 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.board {
+  display: grid;
+  padding: 90px 30px 30px;
+}
+
+.card {
+  width: var(--size);
+  height: var(--size);
+  perspective: 800px;
+
+  &.open .inner,
+  &.matched .inner {
+    transform: rotateY(180deg);
+  }
+
+  &.matched .front {
+    background: color-mix(in srgb, var(--green) 25%, var(--paper));
+  }
+}
+
+.inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.4s;
+  transform-style: preserve-3d;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 26%;
+  box-shadow: var(--bevel), var(--shadow);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* 卡背：薄荷绿 + 白点 + 四叶草，像动森的花纹 */
+.back {
+  background:
+    radial-gradient(circle at 12px 12px, rgba(255, 255, 255, 0.45) 5px, transparent 6px) 0 0 / 24px
+      24px,
+    var(--green);
+  border: 6px solid rgba(255, 255, 255, 0.7);
+  font-size: calc(var(--size) * 0.36);
+
+  span {
+    display: grid;
+    place-items: center;
+    width: 52%;
+    height: 52%;
+    border-radius: 50%;
+    background: var(--paper);
+  }
+}
+
+.front {
+  transform: rotateY(180deg);
+  font-size: calc(var(--size) * 0.6);
+}

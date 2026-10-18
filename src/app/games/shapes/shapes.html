@@ -1,0 +1,26 @@
+<app-game-shell (start)="newRound()">
+  <div class="row targets paper">
+    @for (slot of slots(); track slot) {
+      <div #slot class="slot pop-in">
+        <svg viewBox="0 0 100 100"><path [attr.d]="slot.shape.d" /></svg>
+      </div>
+    }
+  </div>
+  <div class="row">
+    @for (p of pieces(); track p) {
+      <div
+        class="piece"
+        [class]="p.state()"
+        [class.pop-in]="p.state() === 'new'"
+        [style.transform]="p.state() === 'new' ? null : transform(p)"
+        (pointerdown)="grab(p, $event)"
+        (pointermove)="move(p, $event)"
+        (pointerup)="drop(p, $event)"
+        (pointercancel)="drop(p, $event)"
+      >
+        <svg viewBox="0 0 100 100"><path [attr.d]="p.shape.d" [style.fill]="p.shape.color" /></svg>
+      </div>
+    }
+  </div>
+  <div class="ground"></div>
+</app-game-shell>

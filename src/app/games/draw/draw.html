@@ -1,0 +1,34 @@
+<app-game-shell [showStart]="false">
+  <canvas
+    #canvas
+    (pointerdown)="down($event)"
+    (pointermove)="move($event)"
+    (pointerup)="up($event)"
+    (pointercancel)="up($event)"
+  ></canvas>
+
+  <div class="tools">
+    @for (c of colors; track c) {
+      <button
+        class="tool"
+        [class.sel]="pen() === c"
+        [style.background]="c"
+        (click)="choosePen(c)"
+      ></button>
+    }
+    <button class="tool" [class.sel]="pen() === 'rainbow'" (click)="choosePen('rainbow')">
+      🌈
+    </button>
+    <button class="tool" [class.sel]="pen() === 'eraser'" (click)="choosePen('eraser')">🧽</button>
+
+    <div class="sep"></div>
+    @for (s of sizes; track s) {
+      <button class="tool" [class.sel]="size() === s" (click)="chooseSize(s)">
+        <span class="dot" [style.width.px]="s * 0.6 + 6" [style.height.px]="s * 0.6 + 6"></span>
+      </button>
+    }
+
+    <div class="sep"></div>
+    <button class="tool" aria-label="清空" (click)="clear()">🗑️</button>
+  </div>
+</app-game-shell>

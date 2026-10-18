@@ -1,0 +1,36 @@
+<app-game-shell (start)="begin()">
+  @if (question()) {
+    <div class="question paper">
+      <span class="name-tag">数一数</span>
+      {{ question() }}
+      <button aria-label="再听一遍" (click)="repeat()">🔊</button>
+    </div>
+  } @else {
+    <div class="question-space"></div>
+  }
+
+  <!-- 点一下东西就数一个，帮助小朋友一一对应 -->
+  <div class="things">
+    @for (t of things(); track t.id) {
+      <div class="thing pop-in" [class.counted]="t.n" (pointerdown)="countThing(t)">
+        {{ item().emoji }}
+        @if (t.n) {
+          <span class="n">{{ t.n }}</span>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="answers">
+    @for (n of options(); track n) {
+      <button
+        class="ans"
+        [style.background]="buttonColors[$index]"
+        [class.shake]="shaking() === n"
+        (click)="choose(n)"
+      >
+        {{ n }}
+      </button>
+    }
+  </div>
+</app-game-shell>

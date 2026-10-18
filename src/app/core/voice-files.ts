@@ -54,6 +54,7 @@ export const VOICE_FILES: Record<string, string> = {
   '49': '7c4f0d9c1e32.mp3',
   '5': 'c1fad9db5150.mp3',
   '50': '8679230d4481.mp3',
+  '50层啦！好厉害！': '6e8c088bbd29.mp3',
   '50个气球！真棒！': 'dff75e7ac7ed.mp3',
   '51': 'fe169e4c6b1a.mp3',
   '52': '170e79376c8b.mp3',

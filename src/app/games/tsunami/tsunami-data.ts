@@ -4,6 +4,8 @@ export const FLOOR_H = 0.3;
 export const MAX_FLOORS = 120;
 /** 盖到这一层变成台北 101 */
 export const TAIPEI_101 = 101;
+/** 盖到这一层也庆祝一下 */
+export const HALFWAY = 50;
 
 /** 海浪高度（层），随机 */
 export const MIN_WAVE = 5;
@@ -25,6 +27,7 @@ export const ALL_SAFE = '大家都安全！';
 export const SOME_LOST = '有的被冲走了，再盖高一点吧！';
 export const REBUILD = '重新盖起来！';
 export const TAIPEI = '台北101！好高呀！';
+export const HALFWAY_LINE = '50层啦！好厉害！';
 export const CLEAR_CONFIRM = '再按一次，全部清空';
 export const CLEARED = '清空啦，重新盖吧！';
 
@@ -49,4 +52,4 @@ export const VOICE_LINES = [
   CLEAR_CONFIRM,
   CLEARED,
 ];
-export const CHEER_LINES = [TAIPEI];
+export const CHEER_LINES = [TAIPEI, HALFWAY_LINE];

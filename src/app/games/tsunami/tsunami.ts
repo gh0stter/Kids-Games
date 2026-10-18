@@ -24,6 +24,8 @@ import {
   SOME_LOST,
   TAIPEI,
   TAIPEI_101,
+  HALFWAY,
+  HALFWAY_LINE,
   BLOCKED,
   CLEAR_CONFIRM,
   CLEARED,
@@ -61,7 +63,8 @@ export class Tsunami {
   protected readonly confirmClear = signal(false);
 
   private world: World | null = null;
-  private lastSpoken = 0;
+  /** 停手后再读层数，连续点的时候不会一直读到一半被打断 */
+  private speakTimer = 0;
   private confirmTimer = 0;
 
   constructor() {
@@ -69,12 +72,16 @@ export class Tsunami {
       this.world = new World(this.canvas().nativeElement, {
         floor: (h) => this.onFloor(h),
         taipei: () => this.celebration.celebrate(TAIPEI),
+        halfway: () => this.celebration.celebrate(HALFWAY_LINE),
         label: (pos, h) => this.moveLabel(pos, h),
         collapse: () => this.sound.pop(),
         blocked: () => this.speech.say(BLOCKED),
       });
     });
-    inject(DestroyRef).onDestroy(() => this.world?.dispose());
+    inject(DestroyRef).onDestroy(() => {
+      clearTimeout(this.speakTimer);
+      this.world?.dispose();
+    });
   }
 
   protected choose(tool: Tool): void {
@@ -151,12 +158,10 @@ export class Tsunami {
       type: 'triangle',
       vol: 0.14,
     });
-    // 按住快速盖的时候不要每层都读，5 的倍数和 101 一定读
-    const now = performance.now();
-    if (now - this.lastSpoken > 450 || height % 5 === 0 || height === TAIPEI_101) {
-      if (height !== TAIPEI_101) this.speech.say(floorLine(height));
-      this.lastSpoken = now;
-    }
+    clearTimeout(this.speakTimer);
+    // 50 和 101 由庆祝的那句话来说
+    if (height === TAIPEI_101 || height === HALFWAY) return;
+    this.speakTimer = setTimeout(() => this.speech.say(floorLine(height)), 500);
   }
 
   private moveLabel(pos: { x: number; y: number } | null, height: number): void {

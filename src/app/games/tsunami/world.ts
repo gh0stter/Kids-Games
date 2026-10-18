@@ -1,24 +1,19 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { generateIsland } from './island';
 import { buildItem, ItemKind, meteor, roof, spire, volcano } from './models';
-import { EventKind, FLOOR_H, MAX_FLOORS, TAIPEI_101 } from './tsunami-data';
+import { EventKind, FLOOR_H, HALFWAY, MAX_FLOORS, TAIPEI_101 } from './tsunami-data';
 import { LIP, WaveMesh, WaveSample } from './wave-mesh';
 
 export type Tool = 'build' | 'road' | 'remove' | ItemKind;
 
-/** 小岛地图：L 陆地，W 小河，. 海 */
-const MAP = [
-  '..LLLLLLWLL.',
-  '.LLLLLLLWLLL',
-  'LLLLLLLWWLLL',
-  'LLLLLLLWLLLL',
-  'LLLLLLLWLLLL',
-  'LLLLLLLWWLLL',
-  'LLLLLLLLWLLL',
-  '.LLLLLLLWLL.',
-  '..LLLLLLWL..',
-];
-const W = MAP[0].length;
-const D = MAP.length;
+/**
+ * 当前的小岛地图：L 陆地，W 小河，. 海。每次进游戏、每次清空都重新随机生成。
+ * 一个页面同时只有一个 World，所以放在模块里，tileCenter / cell 这些小函数可以直接用。
+ */
+let MAP: string[] = [];
+let W = 0;
+let D = 0;
 const SEA_Y = -0.15;
 /** 船能放在离岛多远的海里 */
 const SEA_MARGIN = 3;
@@ -48,6 +43,8 @@ export interface WorldCallbacks {
   floor(height: number): void;
   /** 盖到 101 */
   taipei(): void;
+  /** 盖到 50 层 */
+  halfway(): void;
   /** 每帧：当前这栋楼的层数标签在屏幕上的位置 */
   label(pos: { x: number; y: number } | null, height: number): void;
   /** 有楼被冲倒 */
@@ -187,8 +184,35 @@ export class World {
   private readonly blockMesh: THREE.InstancedMesh;
   /** 第 i 个实例属于哪栋楼 */
   private blockOwners: Tower[] = [];
-  private readonly islandMesh: THREE.InstancedMesh;
-  private readonly landTiles: { x: number; z: number }[] = [];
+  private islandMesh: THREE.InstancedMesh | null = null;
+  private landTiles: { x: number; z: number; delay: number }[] = [];
+  /** 新岛从天上一块一块落下来，Bastion 那样拼起来 */
+  private islandTime = 0;
+  private islandDone = false;
+  private readonly islandGeo = new THREE.BoxGeometry(1, 1.6, 1).translate(0, -0.8, 0);
+  private readonly islandMats = (() => {
+    const dirt = new THREE.MeshStandardMaterial({
+      color: '#a8754a',
+      roughness: 0.9,
+      flatShading: true,
+    });
+    const grass = new THREE.MeshStandardMaterial({
+      color: '#8fd06c',
+      roughness: 0.9,
+      flatShading: true,
+    });
+    return [dirt, dirt, grass, dirt, dirt, dirt];
+  })();
+  private readonly roadMats = {
+    asphalt: new THREE.MeshStandardMaterial({ color: '#6a6e78', roughness: 0.9 }),
+    line: new THREE.MeshStandardMaterial({ color: '#f4ecd8', roughness: 0.6 }),
+    bridge: new THREE.MeshStandardMaterial({
+      color: '#3a6ff0',
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.3,
+    }),
+  };
   private readonly sea: THREE.Mesh;
   private readonly roadGroup = new THREE.Group();
   private readonly particleMesh: THREE.InstancedMesh;
@@ -269,37 +293,7 @@ export class World {
     this.sea.receiveShadow = true;
     this.scene.add(this.sea);
 
-    // 小岛：每个地块一个方块，上面草地、侧面泥土；河道低一些
-    for (let z = 0; z < D; z++)
-      for (let x = 0; x < W; x++) if (cell(x, z) !== '.') this.landTiles.push({ x, z });
-    const geo = new THREE.BoxGeometry(1, 1.6, 1);
-    geo.translate(0, -0.8, 0);
-    const dirt = new THREE.MeshStandardMaterial({
-      color: '#a8754a',
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const grass = new THREE.MeshStandardMaterial({
-      color: '#8fd06c',
-      roughness: 0.9,
-      flatShading: true,
-    });
-    this.islandMesh = new THREE.InstancedMesh(
-      geo,
-      [dirt, dirt, grass, dirt, dirt, dirt],
-      this.landTiles.length,
-    );
-    this.landTiles.forEach(({ x, z }, i) => {
-      const river = cell(x, z) === 'W';
-      const p = tileCenter(x, z, river ? -0.55 : 0);
-      this.islandMesh.setMatrixAt(i, this.tmp.m.makeTranslation(p.x, p.y, p.z));
-      const tint = river
-        ? new THREE.Color('#e8d4a0')
-        : new THREE.Color(1, 1, 1).multiplyScalar(rand(0.92, 1.04));
-      this.islandMesh.setColorAt(i, tint);
-    });
-    this.islandMesh.receiveShadow = true;
-    this.scene.add(this.islandMesh);
+    this.newIsland();
     this.scene.add(this.roadGroup);
 
     // 磁力片：所有楼的每一层共用一个 InstancedMesh
@@ -358,6 +352,56 @@ export class World {
     this.rot += step;
   }
 
+  /** 随机生成一座新岛：每个地块一个方块，上面草地、侧面泥土，河道低一些 */
+  private newIsland(): void {
+    MAP = generateIsland();
+    W = MAP[0].length;
+    D = MAP.length;
+    if (this.islandMesh) {
+      this.scene.remove(this.islandMesh);
+      this.islandMesh.dispose();
+    }
+    this.landTiles = [];
+    for (let z = 0; z < D; z++) {
+      for (let x = 0; x < W; x++) {
+        if (cell(x, z) === '.') continue;
+        // 从中间往外，一圈一圈落下来
+        const delay = Math.hypot(x - W / 2, z - D / 2) * 0.05 + rand(0, 0.15);
+        this.landTiles.push({ x, z, delay });
+      }
+    }
+    const mesh = new THREE.InstancedMesh(this.islandGeo, this.islandMats, this.landTiles.length);
+    this.landTiles.forEach(({ x, z }, i) => {
+      const tint =
+        cell(x, z) === 'W'
+          ? new THREE.Color('#e8d4a0')
+          : new THREE.Color(1, 1, 1).multiplyScalar(rand(0.92, 1.04));
+      mesh.setColorAt(i, tint);
+    });
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    this.islandMesh = mesh;
+    this.islandTime = 0;
+    this.islandDone = false;
+    this.stepIsland(0);
+    this.scene.add(mesh);
+  }
+
+  private stepIsland(dt: number): void {
+    if (this.islandDone || !this.islandMesh) return;
+    this.islandTime += dt;
+    let done = true;
+    this.landTiles.forEach(({ x, z, delay }, i) => {
+      const p = THREE.MathUtils.clamp((this.islandTime - delay) / 0.45, 0, 1);
+      if (p < 1) done = false;
+      const fall = (1 - p) * (1 - p) * 12;
+      const c = tileCenter(x, z, (cell(x, z) === 'W' ? -0.55 : 0) + fall);
+      this.islandMesh!.setMatrixAt(i, this.tmp.m.makeTranslation(c.x, c.y, c.z));
+    });
+    this.islandMesh.instanceMatrix.needsUpdate = true;
+    this.islandDone = done;
+  }
+
   /** 清空整个岛：楼、车、路都飞上天，然后消失 */
   clear(): void {
     this.setEnabled(false);
@@ -384,6 +428,7 @@ export class World {
       for (const it of this.items) this.scene.remove(it.obj);
       this.towers.clear();
       this.items = [];
+      this.newIsland();
       this.setEnabled(true);
     }, 1100);
   }
@@ -436,6 +481,10 @@ export class World {
       this.fireworks(tileCenter(x, z, TAIPEI_101 * FLOOR_H + 2));
     } else if (t.blocks.length < TAIPEI_101) {
       t.is101 = false;
+    }
+    if (t.blocks.length === HALFWAY) {
+      this.cb.halfway();
+      this.fireworks(tileCenter(x, z, HALFWAY * FLOOR_H + 1.5));
     }
     if (t.blocks.length === TAIPEI_101 || t.blocks.length === 1) this.updateRoof(t);
     this.cb.floor(t.blocks.length);
@@ -492,54 +541,85 @@ export class World {
     this.rebuildRoads();
   }
 
-  /** 公路：深灰色路面 + 白色虚线；河上的是蓝色的桥（像磁力轨道） */
+  /**
+   * 公路：灰色路面；中线从格子中心往相连的方向画，转弯、路口都能接上；
+   * 不和路相连的一边画白色路边线。河上是蓝色的桥（像磁力轨道），没相连的一边是栏杆。
+   * 同一种材质的方块合并成一个网格，路再多也只有三次绘制。
+   */
   private rebuildRoads(): void {
+    for (const m of this.roadGroup.children) (m as THREE.Mesh).geometry.dispose();
     this.roadGroup.clear();
-    const asphalt = new THREE.MeshStandardMaterial({ color: '#4a4a52', roughness: 0.9 });
-    const line = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 });
-    const bridge = new THREE.MeshStandardMaterial({
-      color: '#3a6ff0',
-      transparent: true,
-      opacity: 0.85,
-      roughness: 0.3,
-    });
+    const parts: Record<keyof typeof this.roadMats, THREE.BufferGeometry[]> = {
+      asphalt: [],
+      line: [],
+      bridge: [],
+    };
+    const box = (
+      part: keyof typeof parts,
+      w: number,
+      h: number,
+      d: number,
+      x: number,
+      y: number,
+      z: number,
+    ): void => {
+      parts[part].push(new THREE.BoxGeometry(w, h, d).translate(x, y, z));
+    };
     for (const k of this.roads) {
       const [x, z] = k.split(',').map(Number);
-      const onRiver = cell(x, z) === 'W';
+      const river = cell(x, z) === 'W';
       const c = tileCenter(x, z);
-      const slab = new THREE.Mesh(
-        new THREE.BoxGeometry(1, onRiver ? 0.12 : 0.04, 1),
-        onRiver ? bridge : asphalt,
-      );
-      slab.position.set(c.x, onRiver ? 0.06 : 0.02, c.z);
-      slab.receiveShadow = true;
-      this.roadGroup.add(slab);
-      const alongX = this.roads.has(key(x - 1, z)) || this.roads.has(key(x + 1, z));
-      const alongZ = this.roads.has(key(x, z - 1)) || this.roads.has(key(x, z + 1));
-      if (onRiver) {
-        // 桥的栏杆
-        for (const s of [-0.45, 0.45]) {
-          const rail = new THREE.Mesh(
-            new THREE.BoxGeometry(alongZ && !alongX ? 0.06 : 1, 0.14, alongZ && !alongX ? 1 : 0.06),
-            bridge,
+      const top = river ? 0.12 : 0.04;
+      box(river ? 'bridge' : 'asphalt', 1, top, 1, c.x, top / 2, c.z);
+      for (const [dx, dz] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const linked = this.roads.has(key(x + dx, z + dz));
+        if (linked && !river) {
+          box(
+            'line',
+            dx ? 0.22 : 0.06,
+            0.01,
+            dz ? 0.22 : 0.06,
+            c.x + dx * 0.25,
+            top + 0.005,
+            c.z + dz * 0.25,
           );
-          rail.position.set(
-            c.x + (alongZ && !alongX ? s : 0),
-            0.19,
-            c.z + (alongZ && !alongX ? 0 : s),
+        } else if (!linked && river) {
+          box(
+            'bridge',
+            dx ? 0.06 : 1,
+            0.14,
+            dz ? 0.06 : 1,
+            c.x + dx * 0.46,
+            top + 0.07,
+            c.z + dz * 0.46,
           );
-          this.roadGroup.add(rail);
-        }
-      } else if (alongX !== alongZ) {
-        for (const s of [-0.25, 0.25]) {
-          const dash = new THREE.Mesh(
-            new THREE.BoxGeometry(alongX ? 0.3 : 0.06, 0.01, alongX ? 0.06 : 0.3),
-            line,
+        } else if (!linked) {
+          box(
+            'line',
+            dx ? 0.05 : 1,
+            0.01,
+            dz ? 0.05 : 1,
+            c.x + dx * 0.42,
+            top + 0.005,
+            c.z + dz * 0.42,
           );
-          dash.position.set(c.x + (alongX ? s : 0), 0.045, c.z + (alongX ? 0 : s));
-          this.roadGroup.add(dash);
         }
       }
+    }
+    for (const [part, geos] of Object.entries(parts) as [
+      keyof typeof parts,
+      THREE.BufferGeometry[],
+    ][]) {
+      if (!geos.length) continue;
+      const mesh = new THREE.Mesh(mergeGeometries(geos), this.roadMats[part]);
+      mesh.receiveShadow = true;
+      this.roadGroup.add(mesh);
+      for (const g of geos) g.dispose();
     }
   }
 
@@ -554,10 +634,11 @@ export class World {
     this.raycaster.setFromCamera(ndc, this.camera);
     // 楼一直在长，包围球要重新算，不然点不到新盖的层
     this.blockMesh.computeBoundingSphere();
+    this.islandMesh?.computeBoundingSphere();
     const targets: THREE.Object3D[] = [
       this.blockMesh,
       ...this.items.map((i) => i.obj),
-      this.islandMesh,
+      ...(this.islandMesh ? [this.islandMesh] : []),
       this.sea,
     ];
     for (const t of this.towers.values()) if (t.roof) targets.push(t.roof.obj);
@@ -1171,7 +1252,7 @@ export class World {
       .multiplyScalar((minX + maxX) / 2)
       .addScaledVector(yAxis, (minY + maxY) / 2);
     const half = Math.max((maxY - minY) / 2, (maxX - minX) / 2 / aspect) * 1.12 + 0.3;
-    const k = instant ? 1 : 0.08;
+    const k = instant ? 1 : 0.16;
     this.view.target.lerp(target, k);
     this.view.half += (half - this.view.half) * k;
     // 下面留出工具栏的位置
@@ -1209,6 +1290,7 @@ export class World {
         tw.done?.();
       }
     }
+    this.stepIsland(dt);
     this.stepWave(dt);
 
     // 磁力片

@@ -40,7 +40,7 @@ export const GAMES: GameInfo[] = [
   {
     path: 'memory',
     title: '翻翻乐',
-    emoji: '🃏',
+    emoji: '🐼',
     color: 'var(--purple)',
     intro: '找一找一样的小动物',
     load: () => import('./games/memory/memory').then((m) => m.Memory),

@@ -11,6 +11,9 @@ export const HALFWAY = 50;
 export const MIN_WAVE = 5;
 export const MAX_WAVE = 100;
 
+/** 地震时，没装阻尼球、又比这个高的楼会倒（每次随机） */
+export const randomQuakeLimit = (): number => 12 + Math.floor(Math.random() * 19);
+
 export type EventKind = 'meteor' | 'quake' | 'volcano';
 export const EVENTS: EventKind[] = ['meteor', 'quake', 'volcano'];
 export const EVENT_LINES: Record<EventKind, string> = {
@@ -28,13 +31,16 @@ export const SOME_LOST = '有的被冲走了，再盖高一点吧！';
 export const REBUILD = '重新盖起来！';
 export const TAIPEI = '台北101！好高呀！';
 export const HALFWAY_LINE = '50层啦！好厉害！';
+export const QUAKE_FALL = '大楼倒了！高楼要装阻尼球哦';
+export const DAMPER_SAVED = '阻尼球保护了大楼！';
+export const DAMPER_ON = '装上阻尼球啦';
 export const CLEAR_CONFIRM = '再按一次，全部清空';
-export const CLEARED = '清空啦，重新盖吧！';
+export const CLEARED = '清空啦，换一个新的岛！';
 
-/** 海浪高度：大多数是中小浪，偶尔来个超级大浪；最高 100 层，盖到 101 一定挡得住 */
+/** 海浪高度：大多数是 30 层以上的大浪，50 层的楼也不保险；最高 100 层，盖到 101 一定挡得住 */
 export function randomWaveHeight(): number {
   const r = Math.random();
-  const [lo, hi] = r < 0.6 ? [MIN_WAVE, 20] : r < 0.9 ? [21, 45] : [46, MAX_WAVE];
+  const [lo, hi] = r < 0.15 ? [10, 30] : r < 0.6 ? [31, 70] : [71, MAX_WAVE];
   return lo + Math.floor(Math.random() * (hi - lo + 1));
 }
 
@@ -49,6 +55,9 @@ export const VOICE_LINES = [
   ALL_SAFE,
   SOME_LOST,
   REBUILD,
+  QUAKE_FALL,
+  DAMPER_SAVED,
+  DAMPER_ON,
   CLEAR_CONFIRM,
   CLEARED,
 ];

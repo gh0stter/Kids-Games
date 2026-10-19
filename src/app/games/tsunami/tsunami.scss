@@ -55,7 +55,7 @@
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 7px;
   padding: 14px 140px calc(env(safe-area-inset-bottom) + 16px) 12px;
   background: #d9a86a;
   border-radius: 36px 36px 0 0;
@@ -65,12 +65,12 @@
 }
 
 .tool {
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: var(--paper);
   box-shadow: 0 5px 0 rgba(90, 60, 30, 0.3);
-  font-size: 32px;
+  font-size: 28px;
   transition: transform 0.1s;
 
   &.sel {

@@ -191,3 +191,65 @@ export function meteor(): THREE.Mesh {
     mat('#5a4038', { emissive: '#ff6a1e', emissiveIntensity: 0.9 }),
   );
 }
+
+/** 桥：蓝色半透明的桥面（像磁力轨道） */
+const bridgeMat = new THREE.MeshStandardMaterial({
+  color: '#3a6ff0',
+  transparent: true,
+  opacity: 0.88,
+  roughness: 0.3,
+});
+/** 画桥时的预览 */
+export const ghostMat = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  transparent: true,
+  opacity: 0.5,
+  depthWrite: false,
+});
+
+/** 一段桥面：沿本地 x 轴，长 len，两边有栏杆。原点在桥面中间 */
+export function bridgeDeck(len: number, ghost = false): THREE.Group {
+  const m = ghost ? ghostMat : bridgeMat;
+  const g = new THREE.Group();
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.08, 0.72), m);
+  deck.position.y = -0.04;
+  g.add(deck);
+  for (const z of [-0.34, 0.34]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len + 0.04, 0.12, 0.05), m);
+    rail.position.set(0, 0.06, z);
+    g.add(rail);
+  }
+  g.traverse((o) => (o.castShadow = !ghost));
+  return g;
+}
+
+/** 桥墩：原点在底部 */
+export function bridgePillar(height: number, ghost = false): THREE.Mesh {
+  const geo = new THREE.CylinderGeometry(0.08, 0.1, height, 8);
+  geo.translate(0, height / 2, 0);
+  const p = new THREE.Mesh(geo, ghost ? ghostMat : bridgeMat);
+  p.castShadow = !ghost;
+  return p;
+}
+
+/** 阻尼球：挂在高楼顶部的金色大球（台北 101 里就有一个）；比楼宽一点，从四面鼓出来才看得见 */
+export function damperBall(): THREE.Group {
+  const g = new THREE.Group();
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 18, 14),
+    // 发一点光，隔着半透明的磁力片也看得到
+    new THREE.MeshStandardMaterial({
+      color: '#ffd23f',
+      metalness: 0.5,
+      roughness: 0.25,
+      emissive: '#ffb000',
+      emissiveIntensity: 0.9,
+    }),
+  );
+  ball.name = 'ball';
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), mat('#555555'));
+  cable.position.y = 0.6;
+  g.add(ball, cable);
+  g.traverse((o) => (o.castShadow = true));
+  return g;
+}

@@ -72,9 +72,9 @@ function tidy(land: boolean[][]): void {
 
 export function generateIsland(): string[] {
   for (;;) {
-    const W = randInt(10, 14);
-    const D = randInt(8, 11);
-    const n = noise(3);
+    const W = randInt(18, 24);
+    const D = randInt(14, 18);
+    const n = noise(4);
     const land = Array.from({ length: D }, (_, z) =>
       Array.from({ length: W }, (_, x) => {
         const nx = ((x + 0.5) / W) * 2 - 1;

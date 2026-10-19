@@ -4,6 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   inject,
+  isDevMode,
   signal,
   viewChild,
 } from '@angular/core';
@@ -29,9 +30,14 @@ import {
   BLOCKED,
   CLEAR_CONFIRM,
   CLEARED,
+  DAMPER_ON,
+  DAMPER_SAVED,
+  QUAKE_FALL,
   waveLine,
 } from './tsunami-data';
-import { Tool, WaveResult, World } from './world';
+import { SaveData, Tool, WaveResult, World } from './world';
+
+const STORAGE_KEY = 'kids-games.tsunami.v2';
 
 type Phase = 'build' | 'event' | 'wave' | 'result';
 
@@ -49,8 +55,11 @@ export class Tsunami {
   private readonly label = viewChild.required<ElementRef<HTMLElement>>('label');
 
   protected readonly tools: { tool: Tool; emoji: string; name: string }[] = [
-    { tool: 'build', emoji: '🧱', name: '盖楼' },
+    { tool: 'build', emoji: '🏢', name: '盖楼' },
+    { tool: 'wall', emoji: '🧱', name: '建墙' },
     { tool: 'road', emoji: '🛣️', name: '修路' },
+    { tool: 'bridge', emoji: '🌉', name: '建桥' },
+    { tool: 'damper', emoji: '🟡', name: '阻尼球' },
     ...ITEM_TOOLS.map(({ kind, emoji, name }) => ({ tool: kind, emoji, name })),
     { tool: 'remove', emoji: '🧹', name: '拆掉' },
   ];
@@ -58,7 +67,6 @@ export class Tsunami {
   protected readonly phase = signal<Phase>('build');
   protected readonly caption = signal('');
   protected readonly result = signal<WaveResult | null>(null);
-
   /** 清空要连按两次：第一次按下后变红，3 秒内再按才清空 */
   protected readonly confirmClear = signal(false);
 
@@ -66,20 +74,35 @@ export class Tsunami {
   /** 停手后再读层数，连续点的时候不会一直读到一半被打断 */
   private speakTimer = 0;
   private confirmTimer = 0;
+  private saveTimer = 0;
 
   constructor() {
     afterNextRender(() => {
-      this.world = new World(this.canvas().nativeElement, {
-        floor: (h) => this.onFloor(h),
-        taipei: () => this.celebration.celebrate(TAIPEI),
-        halfway: () => this.celebration.celebrate(HALFWAY_LINE),
-        label: (pos, h) => this.moveLabel(pos, h),
-        collapse: () => this.sound.pop(),
-        blocked: () => this.speech.say(BLOCKED),
-      });
+      this.world = new World(
+        this.canvas().nativeElement,
+        {
+          floor: (h) => this.onFloor(h),
+          invalid: () => this.sound.bad(),
+          taipei: () => this.celebration.celebrate(TAIPEI),
+          halfway: () => this.celebration.celebrate(HALFWAY_LINE),
+          damper: () => {
+            this.sound.good();
+            this.speech.say(DAMPER_ON);
+          },
+          label: (pos, h, clipped) => this.moveLabel(pos, h, clipped),
+          collapse: () => this.sound.pop(),
+          blocked: () => this.speech.say(BLOCKED),
+          changed: (data) => this.save(data),
+        },
+        this.load(),
+      );
+      // 开发模式下给测试脚本用
+      if (isDevMode()) Object.assign(window, { tsunamiWorld: this.world });
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.speakTimer);
+      clearTimeout(this.saveTimer);
+      clearTimeout(this.confirmTimer);
       this.world?.dispose();
     });
   }
@@ -123,7 +146,11 @@ export class Tsunami {
     this.caption.set(`${EVENT_EMOJI[kind]} ${EVENT_LINES[kind]}`);
     this.speech.say(EVENT_LINES[kind]);
     this.sound.tone(80, { dur: 1.6, type: 'sawtooth', vol: 0.12, slide: -40 });
-    await world.playEvent(kind, dir);
+    const quake = await world.playEvent(kind, dir);
+    if (quake?.fallen) this.speech.say(QUAKE_FALL);
+    else if (quake?.damped) this.speech.say(DAMPER_SAVED);
+    // 让孩子听完再起浪
+    if (quake?.fallen || quake?.damped) await new Promise((r) => setTimeout(r, 2200));
 
     this.phase.set('wave');
     this.caption.set(`🌊 ${waveLine(height)}`);
@@ -164,7 +191,7 @@ export class Tsunami {
     this.speakTimer = setTimeout(() => this.speech.say(floorLine(height)), 500);
   }
 
-  private moveLabel(pos: { x: number; y: number } | null, height: number): void {
+  private moveLabel(pos: { x: number; y: number } | null, height: number, clipped: boolean): void {
     const el = this.label().nativeElement;
     if (!pos || this.phase() !== 'build') {
       el.style.opacity = '0';
@@ -172,7 +199,29 @@ export class Tsunami {
     }
     el.style.opacity = '1';
     el.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -100%)`;
-    const text = String(height);
+    // 楼顶在画面外时，标签贴在屏幕上面，加个箭头
+    const text = clipped ? `↑ ${height}` : String(height);
     if (el.textContent !== text) el.textContent = text;
+  }
+
+  private load(): SaveData | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as SaveData) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 搭的东西一变就存（稍等一下，按住连续盖的时候不用每层都存） */
+  private save(data: SaveData): void {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch {
+        // 存不了就只在这次有效
+      }
+    }, 300);
   }
 }

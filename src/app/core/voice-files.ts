@@ -123,6 +123,7 @@ export const VOICE_FILES: Record<string, string> = {
   擦干净啦: '0b1fe139b41a.mp3',
   彩虹笔: '07f5645c0562.mp3',
   '大家都安全！': '77abdbf7fded.mp3',
+  '大楼倒了！高楼要装阻尼球哦': '9e46872edf09.mp3',
   大象: '5dc53f091f47.mp3',
   '挡住啦！': '6ba0bcd62b3a.mp3',
   '地震啦！': '4d6cfb5d295a.mp3',
@@ -341,7 +342,7 @@ export const VOICE_FILES: Record<string, string> = {
   七: '4a20d61f28f2.mp3',
   企鹅: '447ebba8252d.mp3',
   青蛙: '43e9e88c767d.mp3',
-  '清空啦，重新盖吧！': 'fd81cd7e7383.mp3',
+  '清空啦，换一个新的岛！': '648c2f663490.mp3',
   '全部找到啦！': '2301c192083d.mp3',
   三: '08da290c1598.mp3',
   三角形: 'e700bd99325d.mp3',
@@ -386,4 +387,6 @@ export const VOICE_FILES: Record<string, string> = {
   正方形: '439c34becc55.mp3',
   '正方形，回家啦！': '01c981a10415.mp3',
   '重新盖起来！': '51d60c2fc4cb.mp3',
+  装上阻尼球啦: '87a93a80353d.mp3',
+  '阻尼球保护了大楼！': '980217f7c8be.mp3',
 };

@@ -1,14 +1,32 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { CameraRig } from './camera-rig';
 import { generateIsland } from './island';
-import { buildItem, ItemKind, meteor, roof, spire, volcano } from './models';
-import { EventKind, FLOOR_H, HALFWAY, MAX_FLOORS, TAIPEI_101 } from './tsunami-data';
+import {
+  bridgeDeck,
+  bridgePillar,
+  buildItem,
+  damperBall,
+  ItemKind,
+  meteor,
+  roof,
+  spire,
+  volcano,
+} from './models';
+import {
+  EventKind,
+  FLOOR_H,
+  HALFWAY,
+  MAX_FLOORS,
+  randomQuakeLimit,
+  TAIPEI_101,
+} from './tsunami-data';
 import { LIP, WaveMesh, WaveSample } from './wave-mesh';
 
-export type Tool = 'build' | 'road' | 'remove' | ItemKind;
+export type Tool = 'build' | 'wall' | 'road' | 'bridge' | 'damper' | 'remove' | ItemKind;
 
 /**
- * 当前的小岛地图：L 陆地，W 小河，. 海。每次进游戏、每次清空都重新随机生成。
+ * 当前的小岛地图：L 陆地，W 小河，. 海。第一次进游戏时随机生成，之后跟着存档走。
  * 一个页面同时只有一个 World，所以放在模块里，tileCenter / cell 这些小函数可以直接用。
  */
 let MAP: string[] = [];
@@ -16,21 +34,54 @@ let W = 0;
 let D = 0;
 const SEA_Y = -0.15;
 /** 船能放在离岛多远的海里 */
-const SEA_MARGIN = 3;
+const SEA_MARGIN = 6;
 /** 海浪从岛外多远开始 */
 const WAVE_START = -3;
-const WAVE_SPEED = 2.6;
-const MAX_BLOCKS = 4000;
-const MAX_PARTICLES = 800;
+const WAVE_SPEED = 3.2;
+const MAX_BLOCKS = 6000;
+const MAX_PARTICLES = 900;
+/** 地面到地面的高架桥有多高 */
+const VIADUCT_H = 1.2;
+const MAX_BRIDGE = 14;
+/** 手指移动超过这么多像素算拖动，不算点 */
+const DRAG_PX = 12;
+/** 按住多久开始连续盖 */
+const HOLD_MS = 220;
 
 /** 磁力片的颜色，一层一层轮换，像彩虹 */
-const TILE_COLORS = ['#ff5a5f', '#ff9f1c', '#ffd23f', '#3bceac', '#3a86ff', '#9b5de5'].map(
-  (c) => new THREE.Color(c),
-);
-const ROOF_COLORS = ['#ffd23f', '#9b5de5', '#3bceac', '#ff5a5f'];
+const TILE_COLORS = [
+  '#ff5a5f',
+  '#ff9f1c',
+  '#ffd23f',
+  '#a3e048',
+  '#3bceac',
+  '#4cc9f0',
+  '#3a86ff',
+  '#9b5de5',
+  '#f15bb5',
+].map((c) => new THREE.Color(c));
+const ROOF_COLORS = ['#ffd23f', '#9b5de5', '#3bceac', '#ff5a5f', '#f15bb5'];
 
 type Dir = 'x+' | 'x-' | 'z+' | 'z-';
 const DIRS: Dir[] = ['x+', 'x-', 'z+', 'z-'];
+const NEIGHBORS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+type StackKind = 'tower' | 'wall';
+
+/** 存档：岛的形状 + 孩子搭的所有东西 */
+export interface SaveData {
+  v: 2;
+  map: string[];
+  stacks: { kind: StackKind; x: number; z: number; h: number; damper?: boolean }[];
+  roads: string[];
+  bridges: { path: [number, number][]; heights: number[] }[];
+  items: { kind: ItemKind; x: number; z: number; rot: number }[];
+}
 
 export interface WaveResult {
   saved: number;
@@ -38,22 +89,35 @@ export interface WaveResult {
   blocked: boolean;
 }
 
+export interface QuakeResult {
+  /** 倒了几栋楼 */
+  fallen: number;
+  /** 有几栋高楼靠阻尼球没倒 */
+  damped: number;
+}
+
 export interface WorldCallbacks {
-  /** 楼高变了（加了或拆了一层） */
+  /** 楼或墙的高度变了（0 表示放了或拆了别的东西） */
   floor(height: number): void;
+  /** 这样建不了（比如桥画到海里去了） */
+  invalid(): void;
   /** 盖到 101 */
   taipei(): void;
   /** 盖到 50 层 */
   halfway(): void;
-  /** 每帧：当前这栋楼的层数标签在屏幕上的位置 */
-  label(pos: { x: number; y: number } | null, height: number): void;
+  /** 装上了阻尼球 */
+  damper(): void;
+  /** 每帧：当前这栋楼的层数标签在屏幕上的位置；clipped 表示楼顶在画面外，标签贴在顶上 */
+  label(pos: { x: number; y: number } | null, height: number, clipped: boolean): void;
   /** 有楼被冲倒 */
   collapse(): void;
   /** 有一排海浪被楼挡住 */
   blocked(): void;
+  /** 搭的东西变了，需要保存 */
+  changed(data: SaveData): void;
 }
 
-/** 一个会动的东西：楼的一层、楼顶、车、船 */
+/** 一个会动的东西：楼的一层、楼顶、车、船、一段桥 */
 interface Body {
   pos: THREE.Vector3;
   quat: THREE.Quaternion;
@@ -67,13 +131,37 @@ interface Body {
   fromQuat: THREE.Quaternion;
 }
 
-interface Tower {
+interface Piece {
+  obj: THREE.Object3D;
+  body: Body;
+}
+
+/** 楼和墙都是一层一层的磁力片，只是画法不同 */
+interface Stack {
+  kind: StackKind;
   x: number;
   z: number;
   blocks: Body[];
-  roof: { obj: THREE.Object3D; body: Body } | null;
+  roof: Piece | null;
+  damper: Piece | null;
   is101: boolean;
   collapsed: boolean;
+}
+
+interface BridgePiece extends Piece {
+  home: THREE.Vector3;
+  homeQuat: THREE.Quaternion;
+  /** 这段桥在哪些地块上（海浪到了这些地块就可能被冲垮） */
+  tiles: string[];
+  /** 这段桥最低的地方有多高：浪比它高才会被冲垮 */
+  low: number;
+}
+
+interface Bridge {
+  path: { x: number; z: number }[];
+  heights: number[];
+  pieces: BridgePiece[];
+  broken: boolean;
 }
 
 interface Item {
@@ -116,8 +204,27 @@ interface Tween {
   done?(): void;
 }
 
+/** 一根手指的状态 */
+interface Finger {
+  id: number;
+  x0: number;
+  y0: number;
+  x: number;
+  y: number;
+  /** pending 刚按下还不知道要干嘛；pan 拖地图；paint 画路/画墙；hold 按住连续盖；bridge 画桥 */
+  mode: 'pending' | 'pan' | 'paint' | 'hold' | 'bridge';
+  tile: { x: number; z: number } | null;
+  stack: Stack | null;
+  item: Item | null;
+  bridge: Bridge | null;
+  stroke: Set<string>;
+  /** 画路/画墙时上一次经过的地块：手指划得快会跳格，中间的要补上 */
+  lastTile: { x: number; z: number } | null;
+}
+
 const key = (x: number, z: number): string => `${x},${z}`;
 const IDENTITY = new THREE.Quaternion();
+const ONE = new THREE.Vector3(1, 1, 1);
 const ease = (p: number): number => 1 - Math.pow(1 - p, 3);
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
@@ -178,12 +285,12 @@ function tileTexture(): THREE.Texture {
 export class World {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+  private readonly rig = new CameraRig();
   private readonly raycaster = new THREE.Raycaster();
 
   private readonly blockMesh: THREE.InstancedMesh;
-  /** 第 i 个实例属于哪栋楼 */
-  private blockOwners: Tower[] = [];
+  /** 第 i 个磁力片实例属于哪栋楼/哪面墙 */
+  private blockOwners: Stack[] = [];
   private islandMesh: THREE.InstancedMesh | null = null;
   private landTiles: { x: number; z: number; delay: number }[] = [];
   /** 新岛从天上一块一块落下来，Bastion 那样拼起来 */
@@ -219,29 +326,29 @@ export class World {
   private particles: Particle[] = [];
   private tweens: Tween[] = [];
 
-  private towers = new Map<string, Tower>();
+  private stacks = new Map<string, Stack>();
   private roads = new Set<string>();
+  private bridges: Bridge[] = [];
   private items: Item[] = [];
 
   private tool: Tool = 'build';
-  private active: Tower | null = null;
+  private active: Stack | null = null;
   private holdTimer = 0;
   /** 按住盖楼时盖到 101 就停，让孩子正好停在 101 */
   private stopHold = false;
-  private painting = false;
   private enabled = true;
+  private fingers = new Map<number, Finger>();
+  /** 两根手指：拖动 + 捏合 */
+  private pinch: { mid: { x: number; y: number }; dist: number } | null = null;
+  private ghost: THREE.Object3D[] = [];
 
-  private rot = 0;
-  private az = Math.PI / 4;
-  private view = { target: new THREE.Vector3(), half: 8 };
   private shake = 0;
-  private extraFocus: THREE.Vector3 | null = null;
+  private time = 0;
 
   private lanes: Lane[] = [];
   private wave: WaveMesh | null = null;
   /** 浪的宽度采样点：比岛两边各多出 2 排，两头慢慢变矮，不会看到切口 */
   private waveSamples: WaveSample[] = [];
-  private time = 0;
   private waveDir: Dir = 'x+';
   private waveH = 0;
   private waveRise = 0;
@@ -252,6 +359,7 @@ export class World {
   private readonly resizeObserver: ResizeObserver;
   private readonly tmp = {
     m: new THREE.Matrix4(),
+    m2: new THREE.Matrix4(),
     s: new THREE.Vector3(),
     v: new THREE.Vector3(),
     q: new THREE.Quaternion(),
@@ -261,6 +369,7 @@ export class World {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly cb: WorldCallbacks,
+    saved: SaveData | null,
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -271,16 +380,16 @@ export class World {
     // Bastion 那种暖暖的黄昏光
     this.scene.add(new THREE.HemisphereLight('#ffe7c4', '#2f6474', 1.1));
     const sun = new THREE.DirectionalLight('#ffd09a', 2.4);
-    sun.position.set(10, 18, 7);
+    sun.position.set(14, 24, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, far: 80 });
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, far: 120 });
     sun.shadow.bias = -0.0005;
     this.scene.add(sun);
 
     // 海
     this.sea = new THREE.Mesh(
-      new THREE.PlaneGeometry(300, 300),
+      new THREE.PlaneGeometry(400, 400),
       new THREE.MeshStandardMaterial({
         color: '#3fb0c2',
         roughness: 0.25,
@@ -292,11 +401,9 @@ export class World {
     this.sea.position.y = SEA_Y;
     this.sea.receiveShadow = true;
     this.scene.add(this.sea);
-
-    this.newIsland();
     this.scene.add(this.roadGroup);
 
-    // 磁力片：所有楼的每一层共用一个 InstancedMesh
+    // 磁力片：所有楼和墙的每一层共用一个 InstancedMesh
     this.blockMesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(0.86, FLOOR_H * 0.94, 0.86),
       new THREE.MeshStandardMaterial({
@@ -322,14 +429,23 @@ export class World {
     this.particleMesh.frustumCulled = false;
     this.scene.add(this.particleMesh);
 
+    if (saved?.v === 2 && saved.map?.length) {
+      this.setIsland(saved.map, false);
+      this.load(saved);
+    } else {
+      this.setIsland(generateIsland(), true);
+      this.changed();
+    }
+
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointercancel', this.onUp);
+    canvas.addEventListener('wheel', this.onWheel, { passive: false });
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement!);
     this.resize();
-    this.fitView(true);
+    this.rig.fitUser(this.scenePoints());
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -341,7 +457,15 @@ export class World {
     this.canvas.removeEventListener('pointermove', this.onMove);
     this.canvas.removeEventListener('pointerup', this.onUp);
     this.canvas.removeEventListener('pointercancel', this.onUp);
+    this.canvas.removeEventListener('wheel', this.onWheel);
     this.renderer.dispose();
+  }
+
+  /** 地块（某个高度）在屏幕上的位置，测试脚本用 */
+  tileToScreen(x: number, z: number, y = 0): { x: number; y: number } {
+    const p = tileCenter(x, z, y).project(this.rig.camera);
+    const r = this.canvas.getBoundingClientRect();
+    return { x: ((p.x + 1) / 2) * r.width + r.left, y: ((1 - p.y) / 2) * r.height + r.top };
   }
 
   setTool(tool: Tool): void {
@@ -349,12 +473,56 @@ export class World {
   }
 
   rotate(step: number): void {
-    this.rot += step;
+    this.rig.rotate(step);
   }
 
-  /** 随机生成一座新岛：每个地块一个方块，上面草地、侧面泥土，河道低一些 */
-  private newIsland(): void {
-    MAP = generateIsland();
+  /** 清空：楼、墙、桥、车都飞上天消失，然后换一座随机的新岛 */
+  clear(): void {
+    this.setEnabled(false);
+    const bodies: Body[] = [...this.items.map((it) => it.body)];
+    for (const t of this.stacks.values()) {
+      t.collapsed = true;
+      bodies.push(...t.blocks);
+      if (t.roof) bodies.push(t.roof.body);
+      if (t.damper) bodies.push(t.damper.body);
+    }
+    for (const b of this.bridges) bodies.push(...b.pieces.map((p) => p.body));
+    for (const it of this.items) it.state = 'lost';
+    for (const b of bodies) {
+      b.mode = 'debris';
+      b.vel.set(rand(-1.5, 1.5), rand(8, 14), rand(-1.5, 1.5));
+      b.spin.set(rand(-6, 6), rand(-6, 6), rand(-6, 6));
+    }
+    this.active = null;
+    this.roads.clear();
+    this.rebuildRoads();
+    setTimeout(() => {
+      for (const t of this.stacks.values()) {
+        if (t.roof) this.scene.remove(t.roof.obj);
+        if (t.damper) this.scene.remove(t.damper.obj);
+      }
+      for (const it of this.items) this.scene.remove(it.obj);
+      for (const b of this.bridges) for (const p of b.pieces) this.scene.remove(p.obj);
+      this.stacks.clear();
+      this.items = [];
+      this.bridges = [];
+      this.setIsland(generateIsland(), true);
+      this.rig.fitUser(this.scenePoints());
+      this.changed();
+      this.setEnabled(true);
+    }, 1100);
+  }
+
+  setEnabled(on: boolean): void {
+    this.enabled = on;
+    if (!on) this.cancelFingers();
+  }
+
+  // ---------------------------------------------------------------- 小岛 / 存档
+
+  /** 换一座岛：每个地块一个方块，上面草地、侧面泥土，河道低一些 */
+  private setIsland(map: string[], animate: boolean): void {
+    MAP = map;
     W = MAP[0].length;
     D = MAP.length;
     if (this.islandMesh) {
@@ -366,7 +534,7 @@ export class World {
       for (let x = 0; x < W; x++) {
         if (cell(x, z) === '.') continue;
         // 从中间往外，一圈一圈落下来
-        const delay = Math.hypot(x - W / 2, z - D / 2) * 0.05 + rand(0, 0.15);
+        const delay = animate ? Math.hypot(x - W / 2, z - D / 2) * 0.04 + rand(0, 0.15) : -1;
         this.landTiles.push({ x, z, delay });
       }
     }
@@ -385,6 +553,12 @@ export class World {
     this.islandDone = false;
     this.stepIsland(0);
     this.scene.add(mesh);
+    this.rig.setBounds(
+      new THREE.Box3(
+        new THREE.Vector3(-W / 2 - 6, -4, -D / 2 - 6),
+        new THREE.Vector3(W / 2 + 6, 40, D / 2 + 6),
+      ),
+    );
   }
 
   private stepIsland(dt: number): void {
@@ -402,38 +576,57 @@ export class World {
     this.islandDone = done;
   }
 
-  /** 清空整个岛：楼、车、路都飞上天，然后消失 */
-  clear(): void {
-    this.setEnabled(false);
-    const bodies: Body[] = [];
-    for (const t of this.towers.values()) {
-      t.collapsed = true;
-      bodies.push(...t.blocks);
-      if (t.roof) bodies.push(t.roof.body);
-    }
-    for (const it of this.items) {
-      it.state = 'lost';
-      bodies.push(it.body);
-    }
-    for (const b of bodies) {
-      b.mode = 'debris';
-      b.vel.set(rand(-1.5, 1.5), rand(8, 14), rand(-1.5, 1.5));
-      b.spin.set(rand(-6, 6), rand(-6, 6), rand(-6, 6));
-    }
-    this.active = null;
-    this.roads.clear();
+  private load(saved: SaveData): void {
+    for (const r of saved.roads ?? []) this.roads.add(r);
     this.rebuildRoads();
-    setTimeout(() => {
-      for (const t of this.towers.values()) if (t.roof) this.scene.remove(t.roof.obj);
-      for (const it of this.items) this.scene.remove(it.obj);
-      this.towers.clear();
-      this.items = [];
-      this.newIsland();
-      this.setEnabled(true);
-    }, 1100);
+    for (const s of saved.stacks ?? []) {
+      for (let i = 0; i < Math.min(s.h, MAX_FLOORS); i++) this.addLayer(s.kind, s.x, s.z, true);
+      const t = this.stacks.get(key(s.x, s.z));
+      if (t && s.damper) this.setDamper(t, true);
+    }
+    for (const b of saved.bridges ?? []) {
+      this.addBridge(
+        b.path.map(([x, z]) => ({ x, z })),
+        b.heights,
+      );
+    }
+    for (const it of saved.items ?? []) this.addItem(it.kind, it.x, it.z, it.rot);
+    this.active = null;
   }
 
-  // ---------------------------------------------------------------- 搭建
+  private changed(): void {
+    this.cb.changed({
+      v: 2,
+      map: MAP,
+      stacks: [...this.stacks.values()].map((t) => ({
+        kind: t.kind,
+        x: t.x,
+        z: t.z,
+        h: t.blocks.length,
+        ...(t.damper ? { damper: true } : {}),
+      })),
+      roads: [...this.roads],
+      bridges: this.bridges.map((b) => ({
+        path: b.path.map(({ x, z }) => [x, z] as [number, number]),
+        heights: b.heights,
+      })),
+      items: this.items.map(({ kind, x, z, rot }) => ({ kind, x, z, rot })),
+    });
+  }
+
+  /** 镜头要框住的东西：整座岛 + 每栋楼的楼顶 + 桥 */
+  private scenePoints(): THREE.Vector3[] {
+    const pts: THREE.Vector3[] = [];
+    for (const x of [-W / 2, W / 2])
+      for (const z of [-D / 2, D / 2])
+        pts.push(new THREE.Vector3(x, -0.4, z), new THREE.Vector3(x, 1, z));
+    for (const t of this.stacks.values()) pts.push(this.stackTop(t));
+    for (const b of this.bridges)
+      b.path.forEach(({ x, z }, i) => pts.push(tileCenter(x, z, b.heights[i] + 0.5)));
+    return pts;
+  }
+
+  // ---------------------------------------------------------------- 楼和墙
 
   private isLand(x: number, z: number): boolean {
     return cell(x, z) === 'L';
@@ -454,43 +647,59 @@ export class World {
     return this.items.find((it) => it.x === x && it.z === z);
   }
 
-  private blockHome(t: Tower, floor: number): { pos: THREE.Vector3; scale: number } {
+  private bridgeOver(x: number, z: number): boolean {
+    return this.bridges.some((b) => b.path.some((p) => p.x === x && p.z === z));
+  }
+
+  private stackHome(t: Stack, floor: number): { pos: THREE.Vector3; scale: number } {
     return {
       pos: tileCenter(t.x, t.z, floor * FLOOR_H + FLOOR_H / 2),
       scale: t.is101 ? shape101(floor) : 1,
     };
   }
 
-  private addFloor(x: number, z: number): void {
-    const k = key(x, z);
-    let t = this.towers.get(k);
-    if (!t) {
-      if (!this.isLand(x, z) || this.roads.has(k) || this.itemAt(x, z)) return;
-      t = { x, z, blocks: [], roof: null, is101: false, collapsed: false };
-      this.towers.set(k, t);
-    }
-    if (t.blocks.length >= MAX_FLOORS || t.collapsed) return;
-    const home = this.blockHome(t, t.blocks.length).pos;
-    const b = newBody(home.clone().add(new THREE.Vector3(0, 2.5, 0)), 'drop');
-    t.blocks.push(b);
-    this.active = t;
-    if (t.blocks.length === TAIPEI_101 && !t.is101) {
-      t.is101 = true;
-      this.stopHold = true;
-      this.cb.taipei();
-      this.fireworks(tileCenter(x, z, TAIPEI_101 * FLOOR_H + 2));
-    } else if (t.blocks.length < TAIPEI_101) {
-      t.is101 = false;
-    }
-    if (t.blocks.length === HALFWAY) {
-      this.cb.halfway();
-      this.fireworks(tileCenter(x, z, HALFWAY * FLOOR_H + 1.5));
-    }
-    if (t.blocks.length === TAIPEI_101 || t.blocks.length === 1) this.updateRoof(t);
-    this.cb.floor(t.blocks.length);
+  private stackTop(t: Stack): THREE.Vector3 {
+    return tileCenter(t.x, t.z, t.blocks.length * FLOOR_H + (t.is101 ? 3.2 : 0.9));
   }
 
-  private removeFloor(t: Tower): void {
+  /** 加一层。quiet：读存档时用，不放动画、不庆祝 */
+  private addLayer(kind: StackKind, x: number, z: number, quiet = false): void {
+    const k = key(x, z);
+    let t = this.stacks.get(k);
+    if (!t) {
+      if (!this.isLand(x, z) || this.roads.has(k) || this.itemAt(x, z) || this.bridgeOver(x, z))
+        return;
+      t = { kind, x, z, blocks: [], roof: null, damper: null, is101: false, collapsed: false };
+      this.stacks.set(k, t);
+    }
+    if (t.kind !== kind || t.blocks.length >= MAX_FLOORS || t.collapsed) return;
+    const home = this.stackHome(t, t.blocks.length).pos;
+    t.blocks.push(
+      quiet ? newBody(home) : newBody(home.clone().add(new THREE.Vector3(0, 2.5, 0)), 'drop'),
+    );
+    this.active = t;
+    const h = t.blocks.length;
+    if (kind === 'tower') {
+      if (h === TAIPEI_101) {
+        t.is101 = true;
+        if (!quiet) {
+          this.stopHold = true;
+          this.cb.taipei();
+          this.fireworks(tileCenter(x, z, TAIPEI_101 * FLOOR_H + 2));
+        }
+      } else if (h < TAIPEI_101) {
+        t.is101 = false;
+      }
+      if (h === HALFWAY && !quiet) {
+        this.cb.halfway();
+        this.fireworks(tileCenter(x, z, HALFWAY * FLOOR_H + 1.5));
+      }
+      if (h === TAIPEI_101 || h === 1) this.updateRoof(t);
+    }
+    if (!quiet) this.cb.floor(h);
+  }
+
+  private removeLayer(t: Stack): void {
     t.blocks.pop();
     this.active = t;
     if (t.blocks.length < TAIPEI_101 && t.is101) {
@@ -499,43 +708,99 @@ export class World {
     }
     if (t.blocks.length === 0) {
       if (t.roof) this.scene.remove(t.roof.obj);
-      this.towers.delete(key(t.x, t.z));
+      if (t.damper) this.scene.remove(t.damper.obj);
+      this.stacks.delete(key(t.x, t.z));
       this.active = null;
     }
     this.cb.floor(t.blocks.length);
   }
 
-  private updateRoof(t: Tower): void {
+  private updateRoof(t: Stack): void {
     if (t.roof) this.scene.remove(t.roof.obj);
-    const obj = t.is101 ? spire() : roof(ROOF_COLORS[(t.x + t.z) % ROOF_COLORS.length]);
+    const obj = t.is101 ? spire() : roof(ROOF_COLORS[(t.x * 3 + t.z) % ROOF_COLORS.length]);
     this.scene.add(obj);
     t.roof = { obj, body: newBody(this.roofHome(t)) };
   }
 
-  private roofHome(t: Tower): THREE.Vector3 {
+  private roofHome(t: Stack): THREE.Vector3 {
     return tileCenter(t.x, t.z, t.blocks.length * FLOOR_H);
+  }
+
+  private setDamper(t: Stack, on: boolean): void {
+    if (t.damper) this.scene.remove(t.damper.obj);
+    t.damper = null;
+    if (!on) return;
+    const obj = damperBall();
+    this.scene.add(obj);
+    t.damper = { obj, body: newBody(this.damperHome(t)) };
+  }
+
+  private damperHome(t: Stack): THREE.Vector3 {
+    return tileCenter(t.x, t.z, Math.max(FLOOR_H, (t.blocks.length - 3) * FLOOR_H));
+  }
+
+  /** 墙和旁边的哪些墙/楼连着 */
+  private wallLinks(t: Stack): (readonly [number, number])[] {
+    return NEIGHBORS.filter(([dx, dz]) => this.stacks.has(key(t.x + dx, t.z + dz)));
+  }
+
+  // ---------------------------------------------------------------- 车、路、桥
+
+  /** 这个地块上有没有桥面（不算接在楼里的桥头）；有的话返回桥面高度 */
+  private deckAt(x: number, z: number): number | null {
+    if (this.stacks.has(key(x, z))) return null;
+    let y: number | null = null;
+    for (const b of this.bridges) {
+      if (b.broken) continue;
+      b.path.forEach((p, i) => {
+        if (p.x === x && p.z === z) y = Math.max(y ?? -Infinity, b.heights[i]);
+      });
+    }
+    return y;
+  }
+
+  private groundY(x: number, z: number): number {
+    if (cell(x, z) === 'W') return this.roads.has(key(x, z)) ? 0.12 : SEA_Y;
+    return 0.02;
+  }
+
+  private itemHome(it: Item): THREE.Vector3 {
+    if (it.kind === 'boat') return tileCenter(it.x, it.z, SEA_Y);
+    return tileCenter(it.x, it.z, this.deckAt(it.x, it.z) ?? this.groundY(it.x, it.z));
   }
 
   private addItem(kind: ItemKind, x: number, z: number, rot = Math.floor(Math.random() * 4)): void {
     const obj = buildItem(kind);
-    const y =
-      kind === 'boat' ? SEA_Y : this.roads.has(key(x, z)) && cell(x, z) === 'W' ? 0.12 : 0.02;
-    const body = newBody(tileCenter(x, z, y));
-    body.quat.setFromEuler(new THREE.Euler(0, (rot * Math.PI) / 2, 0));
+    const it: Item = {
+      kind,
+      x,
+      z,
+      rot,
+      obj,
+      body: newBody(new THREE.Vector3()),
+      state: 'idle',
+      lane: null,
+      offset: 0,
+      depth: 0,
+    };
+    it.body.pos.copy(this.itemHome(it));
+    it.body.quat.setFromEuler(new THREE.Euler(0, (rot * Math.PI) / 2, 0));
     this.scene.add(obj);
-    this.items.push({ kind, x, z, rot, obj, body, state: 'idle', lane: null, offset: 0, depth: 0 });
+    this.items.push(it);
   }
 
   private canPlace(kind: ItemKind, x: number, z: number): boolean {
     const k = key(x, z);
-    if (this.itemAt(x, z) || this.towers.has(k)) return false;
-    if (kind === 'boat') return this.isWater(x, z) && !this.roads.has(k);
-    return this.isLand(x, z) || (cell(x, z) === 'W' && this.roads.has(k));
+    if (this.itemAt(x, z) || this.stacks.has(k)) return false;
+    if (kind === 'boat') return this.isWater(x, z) && !this.roads.has(k) && !this.bridgeOver(x, z);
+    return (
+      this.deckAt(x, z) !== null || this.isLand(x, z) || (cell(x, z) === 'W' && this.roads.has(k))
+    );
   }
 
   private paintRoad(x: number, z: number): void {
     const k = key(x, z);
-    if (this.roads.has(k) || this.towers.has(k) || this.itemAt(x, z)) return;
+    if (this.roads.has(k) || this.stacks.has(k) || this.itemAt(x, z)) return;
     if (!this.isLand(x, z) && cell(x, z) !== 'W') return;
     this.roads.add(k);
     this.rebuildRoads();
@@ -571,12 +836,7 @@ export class World {
       const c = tileCenter(x, z);
       const top = river ? 0.12 : 0.04;
       box(river ? 'bridge' : 'asphalt', 1, top, 1, c.x, top / 2, c.z);
-      for (const [dx, dz] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ]) {
+      for (const [dx, dz] of NEIGHBORS) {
         const linked = this.roads.has(key(x + dx, z + dz));
         if (linked && !river) {
           box(
@@ -623,103 +883,402 @@ export class World {
     }
   }
 
+  /** 从 a 到 b 的 L 形路线（先走长的那个方向） */
+  private bridgePath(
+    a: { x: number; z: number },
+    b: { x: number; z: number },
+  ): { x: number; z: number }[] {
+    const path = [{ ...a }];
+    const p = { ...a };
+    const xFirst = Math.abs(b.x - a.x) >= Math.abs(b.z - a.z);
+    const stepX = (): void => {
+      while (p.x !== b.x) {
+        p.x += Math.sign(b.x - p.x);
+        path.push({ ...p });
+      }
+    };
+    const stepZ = (): void => {
+      while (p.z !== b.z) {
+        p.z += Math.sign(b.z - p.z);
+        path.push({ ...p });
+      }
+    };
+    if (xFirst) {
+      stepX();
+      stepZ();
+    } else {
+      stepZ();
+      stepX();
+    }
+    return path.slice(0, MAX_BRIDGE);
+  }
+
+  /**
+   * 桥面高度：两头都是楼 → 空中走廊，在矮的那栋楼顶；一头是楼 → 从楼顶斜下来的坡道；
+   * 两头都是地面 → 两头着地、中间架高的高架桥。路线不对就返回 null。
+   */
+  private bridgeHeights(path: { x: number; z: number }[]): number[] | null {
+    if (path.length < 2) return null;
+    const end = (i: number): { stack: boolean; y: number } => {
+      const { x, z } = path[i];
+      const t = this.stacks.get(key(x, z));
+      return t
+        ? { stack: true, y: t.blocks.length * FLOOR_H }
+        : { stack: false, y: cell(x, z) === 'W' ? 0.15 : 0.06 };
+    };
+    const a = end(0);
+    const b = end(path.length - 1);
+    const n = path.length - 1;
+    if (a.stack && b.stack) return path.map(() => Math.min(a.y, b.y));
+    if (a.stack || b.stack) return path.map((_, i) => a.y + ((b.y - a.y) * i) / n);
+    return path.map((_, i) => (i === 0 ? a.y : i === n ? b.y : VIADUCT_H));
+  }
+
+  /** 把桥拆成一段段桥面和桥墩，每一段都能单独被冲垮 */
+  private bridgePieces(
+    path: { x: number; z: number }[],
+    heights: number[],
+    ghost: boolean,
+  ): BridgePiece[] {
+    const pieces: BridgePiece[] = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = tileCenter(path[i].x, path[i].z, heights[i]);
+      const b = tileCenter(path[i + 1].x, path[i + 1].z, heights[i + 1]);
+      const dir = b.clone().sub(a);
+      const obj = bridgeDeck(dir.length(), ghost);
+      const home = a.clone().add(b).multiplyScalar(0.5);
+      const homeQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(1, 0, 0),
+        dir.normalize(),
+      );
+      pieces.push({
+        obj,
+        body: newBody(home),
+        home,
+        homeQuat,
+        tiles: [key(path[i].x, path[i].z), key(path[i + 1].x, path[i + 1].z)],
+        low: Math.min(heights[i], heights[i + 1]),
+      });
+    }
+    // 两头都接在楼上的是空中走廊，不要桥墩
+    const ends = [path[0], path[path.length - 1]];
+    const skyway = ends.every(({ x, z }) => this.stacks.has(key(x, z)));
+    path.forEach(({ x, z }, i) => {
+      if (skyway || this.stacks.has(key(x, z)) || heights[i] < 0.3) return;
+      const base = cell(x, z) === 'W' ? SEA_Y : 0;
+      const obj = bridgePillar(heights[i] - base - 0.08, ghost);
+      const home = tileCenter(x, z, base);
+      pieces.push({
+        obj,
+        body: newBody(home),
+        home,
+        homeQuat: new THREE.Quaternion(),
+        tiles: [key(x, z)],
+        low: heights[i],
+      });
+    });
+    for (const p of pieces) {
+      p.body.quat.copy(p.homeQuat);
+      p.obj.position.copy(p.home);
+      p.obj.quaternion.copy(p.homeQuat);
+    }
+    return pieces;
+  }
+
+  private addBridge(path: { x: number; z: number }[], heights: number[]): void {
+    const pieces = this.bridgePieces(path, heights, false);
+    for (const p of pieces) this.scene.add(p.obj);
+    this.bridges.push({ path, heights, pieces, broken: false });
+  }
+
+  private removeBridge(b: Bridge): void {
+    for (const p of b.pieces) this.scene.remove(p.obj);
+    this.bridges = this.bridges.filter((x) => x !== b);
+  }
+
+  private clearGhost(): void {
+    for (const o of this.ghost) this.scene.remove(o);
+    this.ghost = [];
+  }
+
+  /**
+   * 孩子画出来的桥的路线：起点是楼时，终点旁边一格内有楼就接到那栋楼上；
+   * 路线走到海边就停在岸上，碰到别的楼就接在那栋楼上停下。
+   */
+  private drawnBridge(
+    from: { x: number; z: number },
+    to: { x: number; z: number },
+  ): { path: { x: number; z: number }[]; heights: number[] } | null {
+    if (cell(from.x, from.z) === '.') return null;
+    let end = to;
+    if (this.stacks.has(key(from.x, from.z)) && !this.stacks.has(key(to.x, to.z))) {
+      for (const [dx, dz] of [[0, 0], ...NEIGHBORS, [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+        const k = key(to.x + dx, to.z + dz);
+        if (this.stacks.has(k) && k !== key(from.x, from.z)) {
+          end = { x: to.x + dx, z: to.z + dz };
+          break;
+        }
+      }
+    }
+    const full = this.bridgePath(from, end);
+    const path = [full[0]];
+    for (const t of full.slice(1)) {
+      if (cell(t.x, t.z) === '.') break;
+      path.push(t);
+      if (this.stacks.has(key(t.x, t.z))) break;
+    }
+    const heights = this.bridgeHeights(path);
+    return heights ? { path, heights } : null;
+  }
+
+  private previewBridge(from: { x: number; z: number }, to: { x: number; z: number }): void {
+    this.clearGhost();
+    const drawn = this.drawnBridge(from, to);
+    if (!drawn) return;
+    const { path, heights } = drawn;
+    if (!heights) return;
+    for (const p of this.bridgePieces(path, heights, true)) {
+      this.scene.add(p.obj);
+      this.ghost.push(p.obj);
+    }
+  }
+
   // ---------------------------------------------------------------- 触摸
 
-  private pick(e: PointerEvent): { x: number; z: number; tower?: Tower; item?: Item } | null {
+  private pick(
+    clientX: number,
+    clientY: number,
+  ): { x: number; z: number; stack?: Stack; item?: Item; bridge?: Bridge } | null {
     const r = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(
-      ((e.clientX - r.left) / r.width) * 2 - 1,
-      -((e.clientY - r.top) / r.height) * 2 + 1,
+      ((clientX - r.left) / r.width) * 2 - 1,
+      -((clientY - r.top) / r.height) * 2 + 1,
     );
-    this.raycaster.setFromCamera(ndc, this.camera);
+    this.raycaster.setFromCamera(ndc, this.rig.camera);
     // 楼一直在长，包围球要重新算，不然点不到新盖的层
     this.blockMesh.computeBoundingSphere();
     this.islandMesh?.computeBoundingSphere();
     const targets: THREE.Object3D[] = [
       this.blockMesh,
       ...this.items.map((i) => i.obj),
+      ...this.bridges.flatMap((b) => b.pieces.map((p) => p.obj)),
       ...(this.islandMesh ? [this.islandMesh] : []),
       this.sea,
     ];
-    for (const t of this.towers.values()) if (t.roof) targets.push(t.roof.obj);
+    for (const t of this.stacks.values()) {
+      if (t.roof) targets.push(t.roof.obj);
+      if (t.damper) targets.push(t.damper.obj);
+    }
     const hit = this.raycaster.intersectObjects(targets, true)[0];
     if (!hit) return null;
+    const isIn = (root: THREE.Object3D): boolean => {
+      for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) if (o === root) return true;
+      return false;
+    };
     if (hit.object === this.blockMesh && hit.instanceId !== undefined) {
       const t = this.blockOwners[hit.instanceId];
-      return { x: t.x, z: t.z, tower: t };
+      return { x: t.x, z: t.z, stack: t };
     }
-    for (const t of this.towers.values()) {
-      if (t.roof && (hit.object === t.roof.obj || hit.object.parent === t.roof.obj))
-        return { x: t.x, z: t.z, tower: t };
+    for (const t of this.stacks.values()) {
+      if ((t.roof && isIn(t.roof.obj)) || (t.damper && isIn(t.damper.obj)))
+        return { x: t.x, z: t.z, stack: t };
     }
-    const item = this.items.find((i) => i.obj === hit.object || i.obj.getObjectById(hit.object.id));
+    const item = this.items.find((i) => isIn(i.obj));
     if (item) return { x: item.x, z: item.z, item };
-    if (hit.object === this.islandMesh && hit.instanceId !== undefined) {
-      const { x, z } = this.landTiles[hit.instanceId];
-      return { x, z, tower: this.towers.get(key(x, z)) };
-    }
+    const bridge = this.bridges.find((b) => b.pieces.some((p) => isIn(p.obj)));
     const x = Math.floor(hit.point.x + W / 2);
     const z = Math.floor(hit.point.z + D / 2);
-    return { x, z, tower: this.towers.get(key(x, z)) };
+    if (bridge) return { x, z, bridge };
+    if (hit.object === this.islandMesh && hit.instanceId !== undefined) {
+      const tile = this.landTiles[hit.instanceId];
+      return { x: tile.x, z: tile.z, stack: this.stacks.get(key(tile.x, tile.z)) };
+    }
+    return { x, z, stack: this.stacks.get(key(x, z)) };
   }
 
   private readonly onDown = (e: PointerEvent): void => {
-    if (!this.enabled) return;
     this.canvas.setPointerCapture(e.pointerId);
-    const p = this.pick(e);
-    if (!p) return;
+    const f: Finger = {
+      id: e.pointerId,
+      x0: e.clientX,
+      y0: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      mode: 'pending',
+      tile: null,
+      stack: null,
+      item: null,
+      bridge: null,
+      stroke: new Set(),
+      lastTile: null,
+    };
+    this.fingers.set(e.pointerId, f);
+    if (this.fingers.size === 2) {
+      // 第二根手指放下：取消第一根手指正在做的事，改成拖动 + 捏合
+      this.cancelFingers(false);
+      const [a, b] = [...this.fingers.values()];
+      this.pinch = {
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+      };
+      return;
+    }
+    if (this.fingers.size > 2 || !this.enabled) return;
+
+    const p = this.pick(e.clientX, e.clientY);
+    f.tile = p ? { x: p.x, z: p.z } : null;
+    f.stack = p?.stack ?? null;
+    f.item = p?.item ?? null;
+    f.bridge = p?.bridge ?? null;
     const tool = this.tool;
-    if (tool === 'build') {
-      this.addFloor(p.x, p.z);
-      this.repeat(() => this.addFloor(p.x, p.z));
-    } else if (tool === 'remove') {
-      if (p.item) {
-        this.scene.remove(p.item.obj);
-        this.items = this.items.filter((i) => i !== p.item);
+    if (tool === 'road') {
+      f.mode = 'paint';
+      if (p) this.paintTo(f, p);
+    } else if (tool === 'bridge') {
+      f.mode = p ? 'bridge' : 'pan';
+    } else if (tool === 'build' || tool === 'wall' || tool === 'remove') {
+      // 按住一会儿才开始连续盖/拆；在这之前手指动了就是拖地图（墙是画墙）
+      this.holdTimer = setTimeout(() => {
+        if (f.mode !== 'pending') return;
+        f.mode = 'hold';
+        this.tap(f);
+        this.repeat(() => this.tap(f));
+      }, HOLD_MS);
+    }
+  };
+
+  private readonly onMove = (e: PointerEvent): void => {
+    const f = this.fingers.get(e.pointerId);
+    if (!f) return;
+    const dx = e.clientX - f.x;
+    const dy = e.clientY - f.y;
+    f.x = e.clientX;
+    f.y = e.clientY;
+
+    if (this.pinch && this.fingers.size >= 2) {
+      const [a, b] = [...this.fingers.values()];
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      this.rig.pan(mid.x - this.pinch.mid.x, mid.y - this.pinch.mid.y);
+      if (this.pinch.dist > 10) this.rig.zoom(dist / this.pinch.dist);
+      this.pinch = { mid, dist };
+      return;
+    }
+    if (this.fingers.size !== 1) return;
+
+    const moved = Math.hypot(f.x - f.x0, f.y - f.y0) > DRAG_PX;
+    if (f.mode === 'pending' && moved) {
+      clearTimeout(this.holdTimer);
+      if (this.tool === 'wall' && this.enabled) {
+        f.mode = 'paint';
+        if (f.tile) this.paintTo(f, f.tile);
+      } else {
+        f.mode = 'pan';
+      }
+    }
+    if (f.mode === 'pan') {
+      this.rig.pan(dx, dy);
+    } else if (f.mode === 'paint') {
+      const p = this.pick(e.clientX, e.clientY);
+      if (p) this.paintTo(f, p);
+    } else if (f.mode === 'bridge' && f.tile) {
+      const p = this.pick(e.clientX, e.clientY);
+      if (p) this.previewBridge(f.tile, p);
+    }
+  };
+
+  private readonly onUp = (e: PointerEvent): void => {
+    const f = this.fingers.get(e.pointerId);
+    this.fingers.delete(e.pointerId);
+    if (this.fingers.size < 2) this.pinch = null;
+    if (!f) return;
+    clearTimeout(this.holdTimer);
+    if (!this.enabled) return;
+    if (f.mode === 'pending') this.tap(f);
+    if (f.mode === 'bridge' && f.tile) {
+      this.clearGhost();
+      const p = this.pick(e.clientX, e.clientY);
+      const drawn = p ? this.drawnBridge(f.tile, p) : null;
+      if (drawn) {
+        this.addBridge(drawn.path, drawn.heights);
         this.cb.floor(0);
-      } else if (p.tower) {
-        const t = p.tower;
-        this.removeFloor(t);
-        this.repeat(() => t.blocks.length && this.removeFloor(t));
-      } else if (this.roads.delete(key(p.x, p.z))) {
+      } else {
+        this.cb.invalid();
+      }
+    }
+    this.changed();
+  };
+
+  private readonly onWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    this.rig.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+  };
+
+  private cancelFingers(clear = true): void {
+    clearTimeout(this.holdTimer);
+    this.clearGhost();
+    for (const f of this.fingers.values()) f.mode = 'pan';
+    if (clear) {
+      this.fingers.clear();
+      this.pinch = null;
+    }
+  }
+
+  /** 点一下（或者按住时每一下）：看当前的工具做什么 */
+  private tap(f: Finger): void {
+    const tool = this.tool;
+    const tile = f.tile;
+    if (!tile) return;
+    if (tool === 'build' || tool === 'wall') {
+      this.addLayer(tool === 'build' ? 'tower' : 'wall', tile.x, tile.z);
+    } else if (tool === 'remove') {
+      if (f.item) {
+        this.scene.remove(f.item.obj);
+        this.items = this.items.filter((i) => i !== f.item);
+        f.item = null;
+        this.cb.floor(0);
+      } else if (f.bridge) {
+        this.removeBridge(f.bridge);
+        f.bridge = null;
+        this.cb.floor(0);
+      } else if (f.stack && f.stack.blocks.length) {
+        this.removeLayer(f.stack);
+      } else if (this.roads.delete(key(tile.x, tile.z))) {
         this.rebuildRoads();
         this.cb.floor(0);
       }
-    } else if (tool === 'road') {
-      this.painting = true;
-      this.paintRoad(p.x, p.z);
-    } else {
+    } else if (tool === 'damper') {
+      const t = f.stack;
+      if (t && t.kind === 'tower' && !t.collapsed) {
+        this.setDamper(t, !t.damper);
+        this.active = t;
+        if (t.damper) this.cb.damper();
+        else this.cb.floor(0);
+      }
+    } else if (tool !== 'road' && tool !== 'bridge') {
       // 点偏了一点（比如船点到了岸边）就放到旁边最近的空位
-      const spot = [
-        [0, 0],
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-        [1, 1],
-        [-1, -1],
-        [1, -1],
-        [-1, 1],
-      ]
-        .map(([dx, dz]) => ({ x: p.x + dx, z: p.z + dz }))
+      const spot = [[0, 0], ...NEIGHBORS, [1, 1], [-1, -1], [1, -1], [-1, 1]]
+        .map(([dx, dz]) => ({ x: tile.x + dx, z: tile.z + dz }))
         .find(({ x, z }) => this.canPlace(tool, x, z));
       if (spot) {
         this.addItem(tool, spot.x, spot.z);
         this.cb.floor(0);
       }
     }
-  };
+  }
 
-  private readonly onMove = (e: PointerEvent): void => {
-    if (!this.painting) return;
-    const p = this.pick(e);
-    if (p) this.paintRoad(p.x, p.z);
-  };
-
-  private readonly onUp = (): void => {
-    this.painting = false;
-    clearTimeout(this.holdTimer);
-  };
+  /** 画路/画墙：从上一格画到这一格，中间跳过的格子也补上；墙是一笔经过的每格加一层 */
+  private paintTo(f: Finger, p: { x: number; z: number }): void {
+    const tiles = f.lastTile ? this.bridgePath(f.lastTile, p).slice(1) : [p];
+    f.lastTile = { x: p.x, z: p.z };
+    for (const t of tiles) {
+      const k = key(t.x, t.z);
+      if (f.stroke.has(k)) continue;
+      f.stroke.add(k);
+      if (this.tool === 'road') this.paintRoad(t.x, t.z);
+      else this.addLayer('wall', t.x, t.z);
+    }
+  }
 
   /** 按住不放：越来越快地重复 */
   private repeat(fn: () => void): void {
@@ -734,15 +1293,7 @@ export class World {
     this.holdTimer = setTimeout(tick, delay);
   }
 
-  // ---------------------------------------------------------------- 海啸
-
-  setEnabled(on: boolean): void {
-    this.enabled = on;
-    if (!on) {
-      clearTimeout(this.holdTimer);
-      this.painting = false;
-    }
-  }
+  // ---------------------------------------------------------------- 事件
 
   randomDir(): Dir {
     return DIRS[Math.floor(Math.random() * DIRS.length)];
@@ -768,10 +1319,10 @@ export class World {
       .setY(SEA_Y);
   }
 
-  /** 陨石 / 地震 / 火山，演完再起浪 */
-  playEvent(kind: EventKind, dir: Dir): Promise<void> {
+  /** 陨石 / 地震 / 火山，演完再起浪。地震会返回倒了几栋楼 */
+  playEvent(kind: EventKind, dir: Dir): Promise<QuakeResult | null> {
     const src = this.sourcePoint(dir);
-    this.extraFocus = src;
+    this.rig.setCinematic([...this.scenePoints(), src, src.clone().setY(6)]);
     return new Promise((resolve) => {
       if (kind === 'meteor') {
         const m = meteor();
@@ -796,23 +1347,11 @@ export class World {
             this.scene.remove(m);
             this.splash(src, 140, 9);
             this.shake = 0.6;
-            setTimeout(resolve, 700);
+            setTimeout(() => resolve(null), 700);
           },
         );
       } else if (kind === 'quake') {
-        this.shake = 1.8;
-        for (let i = 0; i < 40; i++) {
-          const p = tileCenter(Math.random() * W, Math.random() * D, 0.1);
-          this.spawn(
-            p,
-            new THREE.Vector3(rand(-1, 1), rand(1, 3), rand(-1, 1)),
-            1.2,
-            0.18,
-            '#c9a77c',
-            6,
-          );
-        }
-        setTimeout(resolve, 1900);
+        this.quake().then(resolve);
       } else {
         const v = volcano();
         this.volcanoObj = v;
@@ -846,11 +1385,43 @@ export class World {
                   -0.3,
                 );
               },
-              () => setTimeout(resolve, 300),
+              () => setTimeout(() => resolve(null), 300),
             );
           },
         );
       }
+    });
+  }
+
+  /** 地震：楼摇来摇去；没装阻尼球、又比这次地震能承受的高度还高的楼会倒 */
+  private quake(): Promise<QuakeResult> {
+    this.shake = 2.4;
+    for (let i = 0; i < 60; i++) {
+      const p = tileCenter(Math.random() * W, Math.random() * D, 0.1);
+      this.spawn(
+        p,
+        new THREE.Vector3(rand(-1, 1), rand(1, 3), rand(-1, 1)),
+        1.2,
+        0.18,
+        '#c9a77c',
+        6,
+      );
+    }
+    const limit = randomQuakeLimit();
+    const result: QuakeResult = { fallen: 0, damped: 0 };
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        for (const t of this.stacks.values()) {
+          if (t.kind !== 'tower' || t.collapsed || t.blocks.length < limit) continue;
+          if (t.damper) {
+            result.damped++;
+            continue;
+          }
+          result.fallen++;
+          setTimeout(() => this.collapse(t, this.dirVec(this.randomDir()), 'topple'), rand(0, 600));
+        }
+      }, 900);
+      setTimeout(() => resolve(result), 2600);
     });
   }
 
@@ -859,6 +1430,8 @@ export class World {
     this.waveDir = dir;
     this.waveH = height;
     this.waveRise = 0;
+    const src = this.sourcePoint(dir);
+    this.rig.setCinematic([...this.scenePoints(), src, new THREE.Vector3(0, height * FLOOR_H, 0)]);
     const count = this.alongX(dir) ? D : W;
     this.lanes = Array.from({ length: count }, (_, idx) => ({
       idx,
@@ -892,7 +1465,6 @@ export class World {
             if (this.wave) this.scene.remove(this.wave.mesh);
             this.wave = null;
             this.lanes = [];
-            this.extraFocus = null;
             let saved = 0;
             let lost = 0;
             for (const it of this.items) {
@@ -951,14 +1523,14 @@ export class World {
     if (!this.lanes.length) return;
     const len = this.alongX(this.waveDir) ? W : D;
     const top = this.waveH * FLOOR_H * this.waveRise;
-    const along = this.alongX(this.waveDir);
     const dv = this.dirVec(this.waveDir);
     for (const l of this.lanes) {
       if (!l.stopped && !l.done && this.waveRise >= 1) {
         l.front += WAVE_SPEED * dt;
         while (l.nextK < len && l.front >= l.nextK) {
           const { x, z } = this.laneTile(l.idx, l.nextK);
-          const t = this.towers.get(key(x, z));
+          const k = key(x, z);
+          const t = this.stacks.get(k);
           if (t && !t.collapsed && t.blocks.length >= this.waveH) {
             l.stopped = true;
             l.front = l.nextK;
@@ -966,15 +1538,23 @@ export class World {
             this.onLaneBlocked();
             break;
           }
-          if (t && !t.collapsed) this.collapse(t, dv);
+          if (t && !t.collapsed) this.collapse(t, dv, 'wave');
+          // 比浪矮的桥被冲垮
+          for (const b of this.bridges) {
+            for (const p of b.pieces) {
+              if (p.body.mode === 'home' && p.tiles.includes(k) && p.low < this.waveH * FLOOR_H)
+                this.breakPiece(b, p, dv);
+            }
+          }
           l.nextK++;
         }
         if (l.front > len - WAVE_START) l.done = true;
-        // 卷走这一排里被浪碰到的东西
+        // 卷走这一排里被浪碰到、又比浪低的东西（停在高架桥上的车就没事）
         for (const it of this.items) {
           if (it.state !== 'idle') continue;
           const { lane, s } = this.tileLane(it.x, it.z);
-          if (lane === l.idx && s >= WAVE_START && s <= l.front + 0.2) {
+          const under = it.kind === 'boat' || it.body.pos.y < this.waveH * FLOOR_H - 0.1;
+          if (lane === l.idx && s >= WAVE_START && s <= l.front + 0.2 && under) {
             it.state = 'carried';
             it.lane = l;
             it.offset = rand(0.2, 0.7);
@@ -1028,7 +1608,7 @@ export class World {
     // 浪头一路喷水花
     if (this.waveRise > 0.5) {
       const dv = this.dirVec(this.waveDir);
-      for (let i = 0; i < 40 * dt * count; i++) {
+      for (let i = 0; i < 25 * dt * count; i++) {
         const smp = this.waveSamples[Math.floor(Math.random() * this.waveSamples.length)];
         const lane = lanes[THREE.MathUtils.clamp(Math.floor(smp.w), 0, count - 1)];
         if (lane.done) continue;
@@ -1039,31 +1619,68 @@ export class World {
     }
   }
 
-  private collapse(t: Tower, dir: THREE.Vector3): void {
+  /** 楼倒了：wave 被浪冲散；topple 地震时整栋往一边倒，越高的层甩得越远 */
+  private collapse(t: Stack, dir: THREE.Vector3, how: 'wave' | 'topple'): void {
+    if (t.collapsed) return;
     t.collapsed = true;
     this.cb.collapse();
     const side = new THREE.Vector3(dir.z, 0, dir.x);
-    const all = t.roof ? [...t.blocks, t.roof.body] : t.blocks;
+    const all = [
+      ...t.blocks,
+      ...(t.roof ? [t.roof.body] : []),
+      ...(t.damper ? [t.damper.body] : []),
+    ];
     all.forEach((b, i) => {
       b.mode = 'debris';
-      const up = rand(1, 3) + i * 0.02;
-      b.vel
-        .copy(dir)
-        .multiplyScalar(rand(2.5, 5.5))
-        .addScaledVector(side, rand(-1.5, 1.5))
-        .setY(up);
-      b.spin.set(rand(-6, 6), rand(-6, 6), rand(-6, 6));
+      if (how === 'wave') {
+        b.vel
+          .copy(dir)
+          .multiplyScalar(rand(2.5, 5.5))
+          .addScaledVector(side, rand(-1.5, 1.5))
+          .setY(rand(1, 3) + i * 0.02);
+        b.spin.set(rand(-6, 6), rand(-6, 6), rand(-6, 6));
+      } else {
+        b.vel
+          .copy(dir)
+          .multiplyScalar(0.6 + i * 0.09)
+          .addScaledVector(side, rand(-0.3, 0.3))
+          .setY(rand(0, 1));
+        b.spin.copy(side).multiplyScalar(rand(1.5, 3));
+      }
     });
-    this.active = null;
+    // 接在这栋楼上的桥也跟着垮
+    for (const b of this.bridges) {
+      const ends = [b.path[0], b.path[b.path.length - 1]];
+      if (ends.some((p) => p.x === t.x && p.z === t.z))
+        for (const p of b.pieces) this.breakPiece(b, p, dir);
+    }
+    if (this.active === t) this.active = null;
   }
 
-  /** 重建：被冲倒的磁力片飞回原位，被冲走的车开回来 */
+  private breakPiece(b: Bridge, p: BridgePiece, dir: THREE.Vector3): void {
+    if (p.body.mode === 'debris') return;
+    b.broken = true;
+    p.body.mode = 'debris';
+    p.body.vel.copy(dir).multiplyScalar(rand(2, 4)).setY(rand(0.5, 2));
+    p.body.spin.set(rand(-3, 3), rand(-3, 3), rand(-3, 3));
+  }
+
+  /** 重建：被冲倒的磁力片飞回原位，被冲走的车开回来，镜头回到原来的位置 */
   rebuild(): void {
+    this.rig.setCinematic(null);
     let i = 0;
-    for (const t of this.towers.values()) {
+    for (const t of this.stacks.values()) {
       t.collapsed = false;
-      const all = t.roof ? [...t.blocks, t.roof.body] : t.blocks;
+      const all = [
+        ...t.blocks,
+        ...(t.roof ? [t.roof.body] : []),
+        ...(t.damper ? [t.damper.body] : []),
+      ];
       for (const b of all) this.sendBack(b, (i++ % 60) * 0.02);
+    }
+    for (const b of this.bridges) {
+      b.broken = false;
+      for (const p of b.pieces) this.sendBack(p.body, rand(0, 0.4));
     }
     for (const it of this.items) {
       it.state = 'idle';
@@ -1215,63 +1832,40 @@ export class World {
   private resize(): void {
     const el = this.canvas.parentElement!;
     this.renderer.setSize(el.clientWidth, el.clientHeight, false);
+    this.rig.setViewport(el.clientWidth, el.clientHeight);
   }
 
-  /** 镜头自动缩放，让整个岛和最高的楼都在画面里 */
-  private fitView(instant = false): void {
-    const el = this.canvas;
-    const aspect = el.clientWidth / Math.max(1, el.clientHeight);
-    const pts: THREE.Vector3[] = [];
-    for (const x of [-W / 2, W / 2])
-      for (const z of [-D / 2, D / 2])
-        pts.push(new THREE.Vector3(x, -0.4, z), new THREE.Vector3(x, 1, z));
-    for (const t of this.towers.values())
-      pts.push(tileCenter(t.x, t.z, t.blocks.length * FLOOR_H + (t.is101 ? 3.2 : 0.9)));
-    if (this.lanes.length) pts.push(new THREE.Vector3(0, this.waveH * FLOOR_H, 0));
-    if (this.extraFocus) pts.push(this.extraFocus, this.extraFocus.clone().setY(6));
-    this.az += (Math.PI / 4 + (this.rot * Math.PI) / 2 - this.az) * (instant ? 1 : 0.12);
-    const el2 = 0.6;
-    const v = new THREE.Vector3(
-      Math.cos(el2) * Math.sin(this.az),
-      Math.sin(el2),
-      Math.cos(el2) * Math.cos(this.az),
-    );
-    const xAxis = new THREE.Vector3(0, 1, 0).cross(v).normalize();
-    const yAxis = v.clone().cross(xAxis);
-    let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
-    for (const p of pts) {
-      const cx = p.dot(xAxis);
-      const cy = p.dot(yAxis);
-      minX = Math.min(minX, cx);
-      maxX = Math.max(maxX, cx);
-      minY = Math.min(minY, cy);
-      maxY = Math.max(maxY, cy);
+  /** 把一层墙画成竖着的磁力片：往连着的方向各伸出半格，没连着的就是一根柱子 */
+  private drawWall(
+    t: Stack,
+    b: Body,
+    color: THREE.Color,
+    n: number,
+    links: (readonly [number, number])[],
+  ): number {
+    const { m, m2, s, v } = this.tmp;
+    m.compose(b.pos, b.quat, ONE);
+    const panels: [number, number, number, number][] = links.length
+      ? [
+          [0, 0, 0.16, 0.16],
+          ...links.map(
+            ([dx, dz]) =>
+              [dx * 0.25, dz * 0.25, dx ? 0.62 : 0.12, dz ? 0.62 : 0.12] as [
+                number,
+                number,
+                number,
+                number,
+              ],
+          ),
+        ]
+      : [[0, 0, 0.4, 0.4]];
+    for (const [ox, oz, sx, sz] of panels) {
+      m2.compose(v.set(ox, 0, oz), IDENTITY, s.set(sx, 1, sz));
+      this.blockMesh.setMatrixAt(n, m2.premultiply(m));
+      this.blockMesh.setColorAt(n, color);
+      this.blockOwners[n++] = t;
     }
-    const target = xAxis
-      .clone()
-      .multiplyScalar((minX + maxX) / 2)
-      .addScaledVector(yAxis, (minY + maxY) / 2);
-    const half = Math.max((maxY - minY) / 2, (maxX - minX) / 2 / aspect) * 1.12 + 0.3;
-    const k = instant ? 1 : 0.16;
-    this.view.target.lerp(target, k);
-    this.view.half += (half - this.view.half) * k;
-    // 下面留出工具栏的位置
-    const h = this.view.half;
-    Object.assign(this.camera, {
-      left: -h * aspect,
-      right: h * aspect,
-      top: h * 1.02,
-      bottom: -h * 1.3,
-    });
-    this.camera.updateProjectionMatrix();
-    const shake =
-      this.shake > 0
-        ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(
-            0.12 * Math.min(1, this.shake),
-          )
-        : new THREE.Vector3();
-    this.camera.position.copy(this.view.target).addScaledVector(v, 60).add(shake);
-    this.camera.lookAt(this.view.target.clone().add(shake));
+    return n;
   }
 
   private readonly frame = (now: number): void => {
@@ -1293,48 +1887,62 @@ export class World {
     this.stepIsland(dt);
     this.stepWave(dt);
 
-    // 磁力片
-    const { m, s, q } = this.tmp;
+    // 磁力片：地震时楼会摇，越高摇得越厉害；装了阻尼球的摇得少
+    const { m, s } = this.tmp;
     let n = 0;
     this.blockOwners.length = 0;
-    const wobble = this.shake > 0 ? 0.03 * Math.min(1, this.shake) : 0;
-    for (const t of this.towers.values()) {
+    const quaking = Math.min(1, this.shake);
+    const sway = Math.sin(this.time * 14) * quaking;
+    for (const t of this.stacks.values()) {
+      const links = t.kind === 'wall' ? this.wallLinks(t) : [];
+      const damping = t.damper ? 0.25 : 1;
       t.blocks.forEach((b, floor) => {
-        const home = this.blockHome(t, floor);
-        const homePos = wobble
-          ? home.pos.clone().add(new THREE.Vector3(rand(-wobble, wobble), 0, rand(-wobble, wobble)))
-          : home.pos;
-        this.stepBody(b, homePos, IDENTITY, dt, FLOOR_H / 2);
-        s.set(home.scale, 1, home.scale);
-        m.compose(b.pos, b.quat, s);
-        this.blockMesh.setMatrixAt(n, m);
-        this.blockMesh.setColorAt(n, TILE_COLORS[floor % TILE_COLORS.length]);
-        this.blockOwners[n++] = t;
+        if (n >= MAX_BLOCKS - 8) return;
+        const home = this.stackHome(t, floor);
+        if (quaking) home.pos.x += sway * floor * 0.006 * damping;
+        this.stepBody(b, home.pos, IDENTITY, dt, FLOOR_H / 2);
+        const color = TILE_COLORS[floor % TILE_COLORS.length];
+        if (t.kind === 'wall') {
+          n = this.drawWall(t, b, color, n, links);
+        } else {
+          s.set(home.scale, 1, home.scale);
+          m.compose(b.pos, b.quat, s);
+          this.blockMesh.setMatrixAt(n, m);
+          this.blockMesh.setColorAt(n, color);
+          this.blockOwners[n++] = t;
+        }
       });
-      if (t.roof) {
-        this.stepBody(t.roof.body, this.roofHome(t), IDENTITY, dt, 0.1);
-        t.roof.obj.position.copy(t.roof.body.pos);
-        t.roof.obj.quaternion.copy(t.roof.body.quat);
+      for (const piece of [t.roof, t.damper]) {
+        if (!piece) continue;
+        const home = piece === t.roof ? this.roofHome(t) : this.damperHome(t);
+        const height = home.y / FLOOR_H;
+        // 阻尼球往楼摇的反方向荡，把晃动"吃掉"
+        home.x += sway * height * 0.006 * damping * (piece === t.damper ? -3 : 1);
+        this.stepBody(piece.body, home, IDENTITY, dt, 0.1);
+        piece.obj.position.copy(piece.body.pos);
+        piece.obj.quaternion.copy(piece.body.quat);
       }
     }
     this.blockMesh.count = n;
     this.blockMesh.instanceMatrix.needsUpdate = true;
     if (this.blockMesh.instanceColor) this.blockMesh.instanceColor.needsUpdate = true;
 
+    // 桥
+    for (const b of this.bridges) {
+      for (const p of b.pieces) {
+        this.stepBody(p.body, p.home, p.homeQuat, dt, 0.05);
+        p.obj.position.copy(p.body.pos);
+        p.obj.quaternion.copy(p.body.quat);
+      }
+    }
+
     // 车、人、船
     for (const it of this.items) {
-      const homeY =
-        it.kind === 'boat'
-          ? SEA_Y
-          : this.roads.has(key(it.x, it.z)) && cell(it.x, it.z) === 'W'
-            ? 0.12
-            : 0.02;
-      const home = tileCenter(it.x, it.z, homeY);
       const homeQuat = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(0, (it.rot * Math.PI) / 2, 0),
       );
       if (it.state === 'idle' || it.body.mode === 'back')
-        this.stepBody(it.body, home, homeQuat, dt, 0.02);
+        this.stepBody(it.body, this.itemHome(it), homeQuat, dt, 0.02);
       else if (it.state === 'lost' && it.body.mode === 'debris') this.stepDebris(it.body, dt, 0.02);
       it.obj.position.copy(it.body.pos);
       if (it.kind === 'boat' && it.state !== 'carried')
@@ -1349,7 +1957,7 @@ export class World {
       p.vel.y -= p.gravity * dt;
       p.pos.addScaledVector(p.vel, dt);
       const size = p.size * Math.min(1, (p.life / p.maxLife) * 2);
-      m.compose(p.pos, q.identity(), s.set(size, size, size));
+      m.compose(p.pos, IDENTITY, s.set(size, size, size));
       this.particleMesh.setMatrixAt(pn, m);
       this.particleMesh.setColorAt(pn++, p.color);
     }
@@ -1357,22 +1965,24 @@ export class World {
     this.particleMesh.instanceMatrix.needsUpdate = true;
     if (this.particleMesh.instanceColor) this.particleMesh.instanceColor.needsUpdate = true;
 
-    this.fitView();
-    this.renderer.render(this.scene, this.camera);
+    this.rig.update(this.shake);
+    this.renderer.render(this.scene, this.rig.camera);
 
-    // 当前这栋楼头顶的层数
+    // 当前这栋楼头顶的层数；楼顶在画面外就贴在屏幕最上面
     const a = this.active;
     if (a && !a.collapsed && a.blocks.length) {
-      const top = tileCenter(a.x, a.z, a.blocks.length * FLOOR_H + (a.is101 ? 3.2 : 0.9)).project(
-        this.camera,
-      );
+      const top = this.stackTop(a).project(this.rig.camera);
       const r = this.canvas.getBoundingClientRect();
-      this.cb.label(
-        { x: ((top.x + 1) / 2) * r.width + r.left, y: ((1 - top.y) / 2) * r.height + r.top },
-        a.blocks.length,
+      const y = ((1 - top.y) / 2) * r.height + r.top;
+      const minY = r.top + 110;
+      const x = THREE.MathUtils.clamp(
+        ((top.x + 1) / 2) * r.width + r.left,
+        r.left + 50,
+        r.right - 50,
       );
+      this.cb.label({ x, y: Math.max(y, minY) }, a.blocks.length, y < minY);
     } else {
-      this.cb.label(null, 0);
+      this.cb.label(null, 0, false);
     }
   };
 }

@@ -231,7 +231,7 @@ export const VOICE_FILES: Record<string, string> = {
   '对啦！一个星星！': '9b413b16e74c.mp3',
   二: 'e5c9474effc2.mp3',
   '盖高高的楼，挡住海啸！': '7035e4366b48.mp3',
-  还能玩两分钟哦: '1b30cb87ffda.mp3',
+  还能玩一分钟哦: 'a6405715d12a.mp3',
   '海浪有100层楼高！': '5981ae70f7b1.mp3',
   '海浪有10层楼高！': '4f34605f4be1.mp3',
   '海浪有11层楼高！': '0690fde3fc4a.mp3',

@@ -1,83 +1,182 @@
-# 宝贝游戏
+# 宝贝游戏 · Kids Games 🌈
 
-给 4–5 岁小朋友在 iPad 上玩的网页小游戏（Angular 22 + TypeScript，PWA 可离线）。
-部署在家里群晖 DS918+ 的 Web Station 上，通过 `https://home.xxx.com:1317` 访问。
+**English** | [中文](README.zh-CN.md)
 
-## 开发
+A collection of little web games for 4–5 year olds, made for a family iPad.
+It's a Progressive Web App that works offline. The UI follows a soft, Animal Crossing–style look, and every
+line the games say is spoken in a natural Chinese neural voice. Kids don't need to read anything to play.
 
-源码放在 WSL 里（`~/projects/kids-games`），用 VS Code 的 WSL 扩展打开。不需要全局安装 Angular CLI，用项目自带的 `npx ng`。
+![Main menu](docs/screenshots/menu.png)
+
+> The UI and voice are in Simplified Chinese, because the games were made for a Chinese-speaking preschooler.
+> Screenshots were taken in headless Chromium, so the emoji look like Google's. On an iPad they're Apple's.
+
+## Games
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/balloon.png" alt="Balloon Pop"></td>
+    <td width="50%"><img src="docs/screenshots/shapes.png" alt="Shapes Go Home"></td>
+  </tr>
+  <tr>
+    <td><b>🎈 Balloon Pop (气球爆爆)</b><br>Tap the balloons drifting up from the grass. The score is read aloud on every pop, with a cheer every 10 balloons.</td>
+    <td><b>🔺 Shapes Go Home (形状回家)</b><br>Drag each shape into its dashed outline. The shape's name is spoken when you pick it up.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/count.png" alt="Counting"></td>
+    <td><img src="docs/screenshots/memory.png" alt="Memory"></td>
+  </tr>
+  <tr>
+    <td><b>🍎 Count Them (数一数)</b><br>"How many strawberries?" Tap each one to count it out loud, then pick the answer. The numbers get bigger as the streak grows.</td>
+    <td><b>🐼 Memory (翻翻乐)</b><br>Flip the cards and find matching animals. Each animal's name is spoken. Levels go from 3 pairs up to 6.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/draw.png" alt="Drawing"></td>
+    <td><img src="docs/screenshots/tsunami-town.png" alt="Tsunami"></td>
+  </tr>
+  <tr>
+    <td><b>🖍️ Drawing (画画)</b><br>Free drawing with nine colors, a rainbow pen, an eraser, three brush sizes, and multi-touch.</td>
+    <td><b>🌊 Tsunami! (海啸来啦)</b><br>A 3D sandbox: build a town of magnetic-tile towers, then see whether it survives a tsunami. Details below.</td>
+  </tr>
+</table>
+
+## 🌊 Tsunami! — the 3D sandbox
+
+This game came from how my kid really plays: building very tall towers out of magnetic tiles
+(Taipei 101 is a favorite), then rolling a rug over them as the "tsunami". Tall enough towers hold it back.
+
+**Build**
+
+| Tool | What it does |
+| --- | --- |
+| 🏢 Tower | Tap a tile to add a floor, or hold to keep stacking. The floor count is shown and read aloud. Floor 50 gets a celebration, and floor 101 turns into Taipei 101 with fireworks. |
+| 🧱 Wall | Drag across tiles to build walls, one layer per stroke. Walls join their neighbors, so you can fence things in. |
+| 🛣️ Road | Drag to paint roads. Lane markings follow turns and junctions, and roads become bridges over rivers. |
+| 🌉 Bridge | Drag from A to B. Tower to tower makes a skybridge, tower to ground makes a ramp, and ground to ground makes a viaduct. Cars can park on bridges. |
+| 🟡 Damper | Add a tuned mass damper to a tower, like the golden ball inside the real Taipei 101. |
+| 🚒🚛🚜🚌🧍⛵ | Fire trucks, car carriers, diggers, double-decker buses, people and boats. |
+| 🧹 / 🗑️ | Remove things one by one, or tap the bin twice to clear everything and get a new random island. |
+
+One finger pans the map, and two fingers pan and zoom. The island is generated at random and saved automatically.
+
+**Then press 🌊**
+
+A random event, a meteor, an earthquake or a volcano, sets off a tsunami 10 to 100 floors high.
+The wave rolls across the island row by row:
+
+- **Taller than the wave** — that row is blocked, and everything behind it is safe. Walls work the same way, so a ring of walls protects what's inside.
+- **Lower than the wave** — towers break apart, low bridges are washed away, and cars and people float off. Boats ride the wave.
+- **Earthquake** — towers above a random height fall over unless they have a damper.
+- A 101-floor tower always survives, since the biggest wave is 100 floors.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/tsunami-wave.png" alt="Tsunami wave"></td>
+    <td width="50%"><img src="docs/screenshots/tsunami-quake.png" alt="Earthquake"></td>
+  </tr>
+  <tr>
+    <td>A 35-floor wave. The wall ring and the taller towers block their rows.</td>
+    <td>An earthquake. The tower without a damper topples, and its skybridge goes with it.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tsunami-101.png" alt="Taipei 101"></td>
+    <td><img src="docs/screenshots/tsunami-town.png" alt="Town"></td>
+  </tr>
+  <tr>
+    <td>Floor 101: the tower turns into Taipei 101, with fireworks and confetti.</td>
+    <td>Skybridge, ramp, viaduct, a walled yard, roads and boats.</td>
+  </tr>
+</table>
+
+## For parents
+
+Hold the ⚙️ in the top-right corner of the menu for 1.5 seconds, then answer a multiplication question.
+Little kids can't open the settings by accident.
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/settings.png" alt="Settings"></td>
+    <td width="33%"><img src="docs/screenshots/countdown.png" alt="Countdown"></td>
+    <td width="33%"><img src="docs/screenshots/rest.png" alt="Rest screen"></td>
+  </tr>
+  <tr>
+    <td>Daily limit, extra time, update check and force refresh.</td>
+    <td>The countdown turns red in the last minute, with a spoken reminder.</td>
+    <td>When time is up, a bedtime screen covers everything until tomorrow.</td>
+  </tr>
+</table>
+
+- **Daily play limit**: off, or 15 to 60 minutes. Time only counts while a game is on screen. The menu and background don't count.
+- **Check for update / force refresh**: force refresh unregisters the service worker and clears the caches. It first checks that the server is reachable, so you can't end up with a blank app while offline.
+- **Updates never interrupt a game**: a new version downloads in the background and applies when the kid goes back to the menu.
+
+## Tech
+
+- **Angular 22** with standalone components and signals. Each game is lazy-loaded.
+- **three.js** for the tsunami game: an orthographic isometric camera, instanced meshes for the tiles, a hand-rolled curling wave mesh, and simple ballistic and buoyancy "physics".
+- **PWA** with `@angular/service-worker`. Everything is precached, including voice clips and the font, so it works offline after the first visit.
+- **Voice**: about 390 lines pre-rendered as MP3 with Microsoft's neural voices through [edge-tts](https://github.com/rany2/edge-tts). Xiaoxiao reads normal lines and the livelier Xiaoyi reads praise. Clips play through Web Audio, so iOS doesn't block delayed playback. If a clip is missing, the system TTS is used instead.
+- **Sound effects** are synthesized with Web Audio, with no audio files.
+- **Font**: ChillRound (寒蝉圆黑体), subset to the roughly 800 characters the app uses (about 130 KB) and renamed as the OFL requires.
+
+## Getting started
+
+Requires Node.js 22+. Python 3 is only needed to regenerate voice clips or the font subset.
 
 ```bash
-npm start          # 开发服务器 http://localhost:4200（Windows 浏览器可直接打开）
-npm run deploy     # 生产构建 + 同步到 G 盘 site/
+npm install
+npm start                 # dev server at http://localhost:4200
+npm run build             # production build in dist/kids-games/browser
 ```
 
-## 部署链路
+The voice clips and font subset are committed, so you only need these when you change text:
 
-```
-WSL: npm run deploy
-  → dist/kids-games/browser/
-  → rsync 到 /mnt/g/Software Development/Kids Games/site/
-  → Synology Drive 同步到 NAS
-  → Web Station（门户 HTTPS 8800，文档根目录 Kids Games/site）
-  → 路由器 1317 → 8800
+```bash
+npm run tools:setup       # once: creates .venv with edge-tts, fonttools and brotli
+npm run voice             # generate missing clips, delete unused ones, update voice-files.ts
+npm run font              # re-subset the font after adding new Chinese characters
 ```
 
-部署位置可以用环境变量改：`DEPLOY_DIR=/mnt/x/... npm run deploy`。
+### Deploying
 
-## 目录
+Any static HTTPS host works. Routing uses `#/`, so no SPA fallback rule is needed. The service worker needs HTTPS (or `localhost`).
+
+My setup: `npm run deploy` builds and `rsync`s the output to a folder that Synology Drive syncs to a NAS,
+where Web Station serves it over HTTPS. Set `DEPLOY_DIR` to choose the target folder:
+
+```bash
+DEPLOY_DIR=/path/to/site npm run deploy
+```
+
+## Project structure
 
 ```
 src/app/
-  games.ts          游戏注册表：菜单和路由都从这里生成
-  voice-lines.ts    游戏里会说的所有话（生成语音用）
-  app.routes.ts     路由（# 路由，Web Station 不需要 SPA 回退规则）
-  core/
-    sound.ts        音效（Web Audio 合成，无音频文件）
-    speech.ts       中文语音：播放预生成的音频，没有的话用 iPad 系统语音
-    voice-files.ts  文字 → 音频文件对照表（npm run voice 生成）
-    celebration.ts  彩带 + 夸奖
-    random.ts       rand / randInt / pick / shuffle
-    app-update.ts   新版本下载好后，回到菜单时自动刷新
-  shared/
-    game-shell.ts   游戏外壳：回家按钮 + 开始画面（解锁 iOS 声音）
-  menu/             主菜单
-  games/<name>/     各个游戏；<name>-data.ts 放数据和要说的话
-public/voice/       预生成的语音 mp3
+  games.ts            game registry: the menu and routes are generated from this
+  voice-lines.ts      every line the app speaks (input for npm run voice)
+  core/               sound, speech, celebration, play-time limit, app updates
+  shared/             game shell (home button + start screen), settings, rest screen, countdown
+  menu/               main menu
+  games/<name>/       one folder per game; <name>-data.ts holds the data and spoken lines
+  games/tsunami/      world.ts (scene, input, wave, quake), camera-rig.ts, wave-mesh.ts,
+                      island.ts (random islands), models.ts (low-poly vehicles and bridges)
+public/voice/         pre-rendered MP3s
+public/fonts/         font subset
+scripts/              gen-voice.mts, subset-font.py, deploy.sh
 ```
 
-## 语音
+### Adding a game
 
-语音是用微软 Edge 的神经网络语音（edge-tts，非官方接口）预先生成的 mp3，跟其他文件一起离线缓存。
-平时的话用晓晓（`zh-CN-XiaoxiaoNeural`），夸奖用更活泼的晓伊（`zh-CN-XiaoyiNeural`），在 `scripts/gen-voice.mts` 里改。
+1. Create `src/app/games/<name>/<name>.ts`, plus `.html` and `.scss`, and wrap the template in `<app-game-shell (start)="start()">`.
+2. Add an entry to `GAMES` in `src/app/games.ts`: path, title, emoji, color, intro line and lazy loader.
+3. Put the spoken lines in `<name>-data.ts`, add them to `src/app/voice-lines.ts`, then run `npm run voice`.
 
-```bash
-npm run tools:setup   # 第一次：在 .venv 里装 edge-tts 和 fonttools（需要 python3）
-npm run voice         # 生成缺少的语音、删除不用的、更新 voice-files.ts
-```
+The menu, routing and offline cache pick up the new game automatically.
 
-新加或修改了要说的话，把它加进对应的 `*-data.ts`（或 `voice-lines.ts`），再跑 `npm run voice`。
-忘了也没关系，没有音频的话会自动用系统语音。
+## Credits & licenses
 
-## 字体和美术风格
-
-动森风格：天空圆点背景、奶油色纸片（`.paper`）、彩色名牌（`.name-tag`）、圆角图标，颜色变量在 `src/styles.scss`。
-字体是寒蝉圆黑体（ChillRound，OFL），只保留游戏里用到的字，生成到 `public/fonts/chill-round.woff2`（约 90 KB）：
-
-```bash
-npm run font          # 界面加了新汉字后重新跑
-```
-
-## 新增游戏
-
-1. 建 `src/app/games/<name>/<name>.ts`（以及 `.html` / `.scss`），模板最外层包上 `<app-game-shell (start)="start()">`
-2. 在 `src/app/games.ts` 的 `GAMES` 里加一项（路径、标题、图标、颜色、开场白、懒加载）
-3. 游戏里要说的话放进 `<name>-data.ts`，在 `src/app/voice-lines.ts` 里加上，跑 `npm run voice`
-
-菜单、路由、离线缓存都会自动包含新游戏。
-
-## 离线与更新
-
-- 使用 `@angular/service-worker`，首次打开就把所有文件缓存到 iPad，之后断网也能玩
-- 发布新版本后，iPad 联网打开时在后台下载，等回到菜单时自动刷新，不会打断正在玩的游戏
-- Service Worker 只在 HTTPS 下工作，`npm start` 的开发服务器里是关闭的
+- Code: [MIT](LICENSE).
+- Font: [ChillRound](https://github.com/Warren2060/ChillRound) by ChillType, under the SIL Open Font License 1.1 ([licenses/ChillRound-OFL.txt](licenses/ChillRound-OFL.txt)). The bundled file is a modified subset, renamed to *KidsGamesRound* as the OFL's Reserved Font Name clause requires.
+- Voice clips: generated with Microsoft's online neural TTS through the unofficial edge-tts client. Check Microsoft's terms before reusing them.
+- [three.js](https://threejs.org/) (MIT) and [Angular](https://angular.dev/) (MIT).
+- Art direction is inspired by *Animal Crossing* (UI) and *Bastion* (the island that assembles from falling tiles). No assets from either game are used.

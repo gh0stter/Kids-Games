@@ -22,12 +22,12 @@
   /* 按钮底部的"厚度" */
   --bevel: inset 0 -8px 0 rgba(0, 0, 0, 0.08);
   --font:
-    'ChillRound', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    'KidsGamesRound', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 }
 
-/* 寒蝉圆黑体，只包含游戏里用到的字（npm run font 生成） */
+/* 寒蝉圆黑体的子集（OFL，改名为 KidsGamesRound），只包含游戏里用到的字（npm run font 生成） */
 @font-face {
-  font-family: 'ChillRound';
+  font-family: 'KidsGamesRound';
   src: url('/fonts/chill-round.woff2') format('woff2');
   font-display: block;
 }

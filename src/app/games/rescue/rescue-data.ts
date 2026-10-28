@@ -138,23 +138,26 @@ export const PLACE_EMOJI: Record<Place, string> = {
 export const TERRAIN_EMOJI: Record<Terrain, string> = { land: '🌾', ocean: '🌊', coast: '🏖️' };
 export const DISASTER_EMOJI: Record<Disaster, string> = {
   none: '☀️',
-  typhoon: '🌀',
+  // 漩涡用 🌀，台风就用 ⛈️
+  typhoon: '⛈️',
   tornado: '🌪️',
   quake: '🫨',
   tsunami: '🌊',
+  whirlpool: '🌀',
 };
 export const DISASTER_LINES: Record<Exclude<Disaster, 'none'>, string> = {
   typhoon: '台风来啦！',
   tornado: '龙卷风来啦！',
   quake: '地震啦！',
   tsunami: '海啸来啦！',
+  whirlpool: '漩涡来啦！',
 };
 
-/** 自由模式能抽到的组合（海上不会地震，海边只有台风和海啸） */
+/** 自由模式能抽到的组合（海上不会地震，海边只有台风、海啸和漩涡；漩涡只在水里） */
 export const FREE_COMBOS: Record<Terrain, Disaster[]> = {
   land: ['none', 'typhoon', 'tornado', 'quake'],
-  ocean: ['none', 'typhoon', 'tornado', 'tsunami'],
-  coast: ['none', 'typhoon', 'tsunami'],
+  ocean: ['none', 'typhoon', 'tornado', 'tsunami', 'whirlpool'],
+  coast: ['none', 'typhoon', 'tsunami', 'whirlpool'],
 };
 export const freeBrief = (friend: Friend): string => `去救${FRIENDS[friend].name}吧！`;
 /** 自由模式能抽到的强度：海上的龙卷风只有小的（船抓不住地，太强就没法拼了） */
@@ -175,7 +178,7 @@ export const STICKERS: Record<Sticker, { emoji: string; line: string }> = {
   heavy: { emoji: '🪨', line: '又重又稳，吹不动！' },
   low: { emoji: '📏', line: '矮矮的，风就吹不倒！' },
   anchor: { emoji: '⚓', line: '抓住地面，就卷不走！' },
-  long: { emoji: '🚂', line: '车子长长的，跨过了裂缝！' },
+  long: { emoji: '🚂', line: '长长的，掉不进去！' },
   wide: { emoji: '↔️', line: '站得宽宽的，就不会翻！' },
   balance: { emoji: '⚖️', line: '左右一样重，稳稳的！' },
   damper: { emoji: '🟡', line: '阻尼球不怕摇！' },
@@ -207,6 +210,9 @@ export function principles(o: Outcome, c: Challenge): Sticker[] {
       break;
     case 'tsunami':
       add(o.mode === 'float', 'hull');
+      break;
+    case 'whirlpool':
+      add(o.mode === 'float' && s.length >= 4, 'long');
       break;
   }
   add(o.mode === 'fly', 'lift');
@@ -280,6 +286,11 @@ export const CAUSES: Record<Cause, CauseInfo> = {
   washedAway: {
     what: '被海浪冲走啦！',
     ask: '什么东西能浮在浪上？',
+    parts: ['hull', 'rotor'],
+  },
+  whirled: {
+    what: '被漩涡卷进去啦！',
+    ask: '船长长的，是不是就卷不进去了？',
     parts: ['hull', 'rotor'],
   },
 };

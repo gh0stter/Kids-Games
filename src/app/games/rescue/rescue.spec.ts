@@ -25,6 +25,8 @@ const CAR = v('truckTail|wheels|truckCab');
 const LONG_CAR = v('truckTail|wheels|wheels|wheels|truckCab');
 const BOAT = v('boatStern|hull|boatBow');
 const WIDE_BOAT = v('boatStern|hull|boatBow', 'boatStern|hull|boatBow');
+const LONG_BOAT = v('boatStern|hull|hull|boatBow');
+const LONGER_BOAT = v('boatStern|hull|hull|hull|boatBow');
 const HELI = v('heliTail|rotor|heliNose');
 const AMPHIBIOUS = v('boatStern|hull|wheels|truckCab');
 const WIDE_AMPHIBIOUS = v('boatStern|hull|wheels|truckCab', 'boatStern|hull|wheels|truckCab');
@@ -153,6 +155,42 @@ describe('关卡', () => {
   });
 });
 
+describe('漩涡', () => {
+  const pool = (power: 1 | 2 | 3, terrain: Terrain = 'ocean'): Challenge => ({
+    terrain,
+    disaster: 'whirlpool',
+    power,
+    spot: terrain === 'ocean' ? 'water' : 'ground',
+  });
+
+  it('船越长越卷不进去', () => {
+    assert.equal(simulate(BOAT, pool(1)).stars, 2);
+    assert.equal(cause(simulate(BOAT, pool(2))), 'whirled');
+    assert.equal(simulate(LONG_BOAT, pool(2)).ok, true);
+    assert.equal(cause(simulate(LONG_BOAT, pool(3))), 'whirled');
+    assert.equal(simulate(LONGER_BOAT, pool(3)).ok, true);
+  });
+
+  it('宽的船也重一点，但是长度才是关键', () => {
+    assert.equal(cause(simulate(WIDE_BOAT, pool(2))), 'whirled');
+  });
+
+  it('飞过去的不怕漩涡', () => {
+    assert.equal(simulate(HELI, pool(3)).stars, 3);
+  });
+
+  it('海边：水陆两用车要够长或者够宽', () => {
+    assert.equal(simulate(AMPHIBIOUS, pool(2, 'coast')).ok, true);
+    assert.equal(cause(simulate(AMPHIBIOUS, pool(3, 'coast'))), 'whirled');
+    assert.equal(simulate(WIDE_AMPHIBIOUS, pool(3, 'coast')).ok, true);
+  });
+
+  it('贴纸：长长的船', () => {
+    const c = pool(2);
+    assert.equal(principles(simulate(LONG_BOAT, c), c)[0], 'long');
+  });
+});
+
 describe('自由模式', () => {
   // 孩子可能会拼的几种车，自由模式抽到的每一种情况，至少有一台能过
   const TRIED = [
@@ -160,6 +198,8 @@ describe('自由模式', () => {
     LONG_CAR,
     BOAT,
     WIDE_BOAT,
+    LONG_BOAT,
+    LONGER_BOAT,
     HELI,
     AMPHIBIOUS,
     WIDE_AMPHIBIOUS,

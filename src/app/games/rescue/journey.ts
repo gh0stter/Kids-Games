@@ -614,6 +614,8 @@ export class Journey {
         return this.quake(m, o, fail);
       case 'tsunami':
         return this.tsunami(o);
+      case 'whirlpool':
+        return this.whirlpool(o, fail);
     }
   }
 
@@ -1024,6 +1026,188 @@ export class Journey {
       return false;
     }
     return true;
+  }
+
+  /**
+   * 漩涡：海面上转起来一个大漩涡，把船往中间吸。船够长就横在边上绕一圈出来；
+   * 不够长就越转越快、被吸下去，过一会儿再从旁边冒出来，晕乎乎地漂着。飞着的在上面看着就好。
+   */
+  private async whirlpool(o: Outcome, fail: boolean): Promise<boolean> {
+    this.cb.sfx('rumble');
+    const radius = this.lv(2.2, 3, 3.8);
+    const pool = this.vortex(radius, this.lv(1.4, 2.2, 3.2));
+    const start = this.carrier.position.clone();
+    const startRot = this.carrier.rotation.y;
+    // 漩涡在船前面，船在漩涡左边缘
+    const d0 = radius * 0.85;
+    const center = new THREE.Vector3(start.x + d0, WATER_Y + 0.03, 0);
+    pool.group.position.copy(center);
+    this.world.add(pool.group);
+    this.wideGoal = 0.6;
+    await this.tween(1, (p) => pool.group.scale.setScalar(Math.max(0.01, ease(p))));
+    void this.tugTo(o.ratio, 3.4);
+    const fadeOut = (dur: number): Promise<void> =>
+      this.tween(dur, (p) => pool.group.scale.setScalar(Math.max(0.01, 1 - ease(p))));
+    const cleanUp = (): void => {
+      this.loops.delete(pool.loop);
+      this.world.remove(pool.group);
+      disposeGeometry(pool.group);
+      this.wideGoal = 0;
+      this.cb.tug(null);
+    };
+
+    if (o.mode === 'fly') {
+      await this.wait(2.6);
+      await fadeOut(0.8);
+      cleanUp();
+      return true;
+    }
+
+    // 绕着漩涡转：没扛住的越转越快、越转越靠近中间
+    const turns = fail ? 2.2 : 1;
+    const rEnd = fail ? 0.15 : d0 * 0.8;
+    await this.tween(fail ? 3.4 : 3.6, (p) => {
+      const k = fail ? p * p : p;
+      const a = Math.PI - k * turns * Math.PI * 2;
+      const r = d0 + (rEnd - d0) * ease(p);
+      this.carrier.position.set(center.x + Math.cos(a) * r, start.y, Math.sin(a) * r);
+      this.carrier.rotation.y = startRot + (Math.PI - a);
+      this.tilt.rotation.x = (fail ? 0.28 : 0.12) * Math.min(1, p * 2);
+    });
+
+    if (fail) {
+      // 被吸下去：咕噜咕噜转着沉到水里
+      this.cb.sfx('splash');
+      const y0 = this.carrier.position.y;
+      await this.tween(0.9, (p) => {
+        this.carrier.position.y = y0 - ease(p) * 1.8;
+        this.carrier.rotation.y += 0.35;
+      });
+      this.cb.say(BEAR.wow);
+      await fadeOut(1.2);
+      cleanUp();
+      // 从旁边冒出来，晕乎乎地慢慢转
+      this.carrier.position.set(center.x - radius * 0.3, start.y - 1.8, 1.2);
+      this.tilt.rotation.x = 0;
+      this.cb.sfx('pop');
+      await this.tween(0.7, (p) => (this.carrier.position.y = start.y - 1.8 * (1 - ease(p))));
+      this.splash(this.carrier.position.clone().setY(WATER_Y), 20, 3);
+      await this.tween(1.4, (_, dt) => (this.carrier.rotation.y += dt * 2.5));
+      this.cb.say(CAUSES.whirled.what);
+      await this.wait(1.8);
+      return false;
+    }
+
+    // 扛住了：漩涡慢慢停，船回到原来的航线
+    const from = this.carrier.position.clone();
+    const rotFrom = this.carrier.rotation.y;
+    const rotTo = startRot + Math.round((rotFrom - startRot) / (Math.PI * 2)) * Math.PI * 2;
+    void fadeOut(1.2);
+    await this.tween(1.2, (p) => {
+      this.carrier.position.lerpVectors(from, start, ease(p));
+      this.carrier.rotation.y = rotFrom + (rotTo - rotFrom) * ease(p);
+      this.tilt.rotation.x *= 1 - p;
+    });
+    this.carrier.rotation.y = startRot;
+    this.tilt.rotation.x = 0;
+    cleanUp();
+    return true;
+  }
+
+  /** 漩涡的样子：两层反着转的旋涡图案 + 往中间转的白色水花 */
+  private vortex(radius: number, spin: number): { group: THREE.Group; loop: (dt: number) => void } {
+    const group = new THREE.Group();
+    const mats = this.vortexMats();
+    const layers = [1, -0.6].map((dir, i) => {
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(radius * (1 - i * 0.25), 48), mats[i]);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.y = i * 0.01;
+      group.add(disc);
+      return { disc, dir };
+    });
+    // 外圈一道白色的浪花，看得出漩涡有多大
+    const foam = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 0.92, 0.07, 6, 48, Math.PI * 1.6),
+      mats[2],
+    );
+    foam.rotation.x = -Math.PI / 2;
+    foam.position.y = 0.03;
+    group.add(foam);
+    // 在海面之后再画：漩涡不写深度，先画的话会被半透明的海面盖上一层，颜色就淡了
+    group.traverse((o) => (o.renderOrder = 2));
+    const loop = (dt: number): void => {
+      for (const { disc, dir } of layers) disc.rotation.z += dt * spin * dir;
+      foam.rotation.z += dt * spin * 0.8;
+      if (!group.parent || Math.random() > dt * 40) return;
+      // 白色的水花沿着螺旋往中间转
+      const a = rand(0, Math.PI * 2);
+      const r = radius * rand(0.5, 0.95);
+      const at = group.position
+        .clone()
+        .add(new THREE.Vector3(Math.cos(a) * r, 0.05, Math.sin(a) * r));
+      const tangent = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(spin * r);
+      const inward = new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)).multiplyScalar(r * 0.6);
+      this.spawn(at, tangent.add(inward), 0.9, new THREE.Vector3(0.14, 0.05, 0.14), '#ffffff', 0);
+    };
+    this.loops.add(loop);
+    return { group, loop };
+  }
+
+  private vortexMat: THREE.Material[] | null = null;
+  /**
+   * 两层漩涡 + 外圈浪花的材质：建一次一直用（贴图不能放进 mat() 的缓存键里）。
+   * 不受光照影响，不然黄昏的光一照，漩涡就和海面糊在一起了
+   */
+  private vortexMats(): THREE.Material[] {
+    if (this.vortexMat) return this.vortexMat;
+    const map = this.vortexTexture();
+    const common = { map, transparent: true, depthWrite: false, toneMapped: false };
+    this.vortexMat = [
+      new THREE.MeshBasicMaterial({ ...common, color: '#ffffff' }),
+      new THREE.MeshBasicMaterial({ ...common, color: '#d8f6ff', opacity: 0.5 }),
+      new THREE.MeshBasicMaterial({
+        color: '#ffffff',
+        transparent: true,
+        opacity: 0.85,
+        toneMapped: false,
+      }),
+    ];
+    return this.vortexMat;
+  }
+
+  /** 漩涡图案：中间深蓝往外变浅，几条白色的旋臂，边缘淡出融进海面 */
+  private vortexTexture(): THREE.Texture {
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d')!;
+    const mid = size / 2;
+    const grad = g.createRadialGradient(mid, mid, 0, mid, mid, mid);
+    grad.addColorStop(0, 'rgba(4, 30, 55, 1)');
+    grad.addColorStop(0.3, 'rgba(18, 85, 130, 1)');
+    grad.addColorStop(0.7, 'rgba(45, 145, 185, 0.85)');
+    grad.addColorStop(1, 'rgba(63, 176, 194, 0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    // 旋臂：从外往里绕的螺旋线，越往里越细
+    for (let arm = 0; arm < 4; arm++) {
+      g.beginPath();
+      for (let t = 0; t <= 1; t += 0.01) {
+        const r = mid * 0.95 * (1 - t);
+        const a = arm * (Math.PI / 2) + t * Math.PI * 2.4;
+        const x = mid + Math.cos(a) * r;
+        const y = mid + Math.sin(a) * r;
+        if (t === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      g.lineWidth = 10;
+      g.lineCap = 'round';
+      g.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
   }
 
   // ---------------------------------------------------------------- 小动作

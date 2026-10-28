@@ -43,7 +43,7 @@ line the games say is spoken in a natural Chinese neural voice. Kids don't need 
     <td><img src="docs/screenshots/rescue-build.png" alt="Rescue Squad: building"></td>
   </tr>
   <tr>
-    <td colspan="2"><b>🛟 Rescue Squad (拼拼救援队)</b><br>Snap magnetic parts together into a car, boat or helicopter that can ride out a tsunami, typhoon, tornado or earthquake, and go rescue a stranded friend. Details below.</td>
+    <td colspan="2"><b>🛟 Rescue Squad (拼拼救援队)</b><br>Snap magnetic parts together into a car, boat or helicopter that can ride out a tsunami, typhoon, tornado, earthquake or whirlpool, and go rescue a stranded friend. Details below.</td>
   </tr>
 </table>
 
@@ -54,15 +54,15 @@ This game came from how my kid really plays: building very tall towers out of ma
 
 **Build**
 
-| Tool | What it does |
-| --- | --- |
-| 🏢 Tower | Tap a tile to add a floor, or hold to keep stacking. The floor count is shown and read aloud. Floor 50 gets a celebration, and floor 101 turns into Taipei 101 with fireworks. |
-| 🧱 Wall | Drag across tiles to build walls, one layer per stroke. Walls join their neighbors, so you can fence things in. |
-| 🛣️ Road | Drag to paint roads. Lane markings follow turns and junctions, and roads become bridges over rivers. |
-| 🌉 Bridge | Drag from A to B. Tower to tower makes a skybridge, tower to ground makes a ramp, and ground to ground makes a viaduct. Cars can park on bridges. |
-| 🟡 Damper | Add a tuned mass damper to a tower, like the golden ball inside the real Taipei 101. |
-| 🚒🚛🚜🚌🧍⛵ | Fire trucks, car carriers, diggers, double-decker buses, people and boats. |
-| 🧹 / 🗑️ | Remove things one by one, or tap the bin twice to clear everything and get a new random island. |
+| Tool         | What it does                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🏢 Tower     | Tap a tile to add a floor, or hold to keep stacking. The floor count is shown and read aloud. Floor 50 gets a celebration, and floor 101 turns into Taipei 101 with fireworks. |
+| 🧱 Wall      | Drag across tiles to build walls, one layer per stroke. Walls join their neighbors, so you can fence things in.                                                                |
+| 🛣️ Road      | Drag to paint roads. Lane markings follow turns and junctions, and roads become bridges over rivers.                                                                           |
+| 🌉 Bridge    | Drag from A to B. Tower to tower makes a skybridge, tower to ground makes a ramp, and ground to ground makes a viaduct. Cars can park on bridges.                              |
+| 🟡 Damper    | Add a tuned mass damper to a tower, like the golden ball inside the real Taipei 101.                                                                                           |
+| 🚒🚛🚜🚌🧍⛵ | Fire trucks, car carriers, diggers, double-decker buses, people and boats.                                                                                                     |
+| 🧹 / 🗑️      | Remove things one by one, or tap the bin twice to clear everything and get a new random island.                                                                                |
 
 One finger pans the map, and two fingers pan and zoom. The island is generated at random and saved automatically.
 
@@ -114,12 +114,13 @@ heavy things don't blow over, but they also sink and can't fly.
 
 **Go!**
 
-| Disaster | The idea | Ways to build for it |
-| --- | --- | --- |
-| 🌊 Tsunami | Float, and you ride over the wave | A hull, or fly over with rotors |
-| 🌀 Typhoon | Heavy and wide doesn't tip; a raised crane boom or a helicopter catches the wind | A wide base with rollers or a mixer; a wide boat |
-| 🌪️ Tornado | Hold on to the ground | Dig the excavator bucket in, hook the crane to the ground, or just be heavy |
-| 🫨 Earthquake | Long enough to span the crack; low, wide or damped doesn't shake over | A long vehicle, a wide base, the damper ball |
+| Disaster                 | The idea                                                                         | Ways to build for it                                                        |
+| ------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 🌊 Tsunami               | Float, and you ride over the wave                                                | A hull, or fly over with rotors                                             |
+| ⛈️ Typhoon               | Heavy and wide doesn't tip; a raised crane boom or a helicopter catches the wind | A wide base with rollers or a mixer; a wide boat                            |
+| 🌪️ Tornado               | Hold on to the ground                                                            | Dig the excavator bucket in, hook the crane to the ground, or just be heavy |
+| 🫨 Earthquake            | Long enough to span the crack; low, wide or damped doesn't shake over            | A long vehicle, a wide base, the damper ball                                |
+| 🌀 Whirlpool (free mode) | A long boat lies across the whirlpool and doesn't get sucked in                  | More hull pieces in a row; or fly over                                      |
 
 Some rules hold everywhere: wheels on land; a hull on water, with enough buoyancy for the weight (too heavy and it sinks);
 rotors only lift off if their lift beats the weight; and a friend up a tree or on a roof needs a crane to reach.
@@ -253,7 +254,7 @@ The menu, routing and offline cache pick up the new game automatically.
 ## Credits & licenses
 
 - Code: [MIT](LICENSE).
-- Font: [ChillRound](https://github.com/Warren2060/ChillRound) by ChillType, under the SIL Open Font License 1.1 ([licenses/ChillRound-OFL.txt](licenses/ChillRound-OFL.txt)). The bundled file is a modified subset, renamed to *KidsGamesRound* as the OFL's Reserved Font Name clause requires.
+- Font: [ChillRound](https://github.com/Warren2060/ChillRound) by ChillType, under the SIL Open Font License 1.1 ([licenses/ChillRound-OFL.txt](licenses/ChillRound-OFL.txt)). The bundled file is a modified subset, renamed to _KidsGamesRound_ as the OFL's Reserved Font Name clause requires.
 - Voice clips: generated with Microsoft's online neural TTS through the unofficial edge-tts client. Check Microsoft's terms before reusing them.
 - [three.js](https://threejs.org/) (MIT) and [Angular](https://angular.dev/) (MIT).
-- Art direction is inspired by *Animal Crossing* (UI) and *Bastion* (the island that assembles from falling tiles). No assets from either game are used.
+- Art direction is inspired by _Animal Crossing_ (UI) and _Bastion_ (the island that assembles from falling tiles). No assets from either game are used.

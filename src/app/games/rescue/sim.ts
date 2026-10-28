@@ -1,7 +1,7 @@
 import { Stats, stats, Vehicle } from './vehicle';
 
 export type Terrain = 'land' | 'ocean' | 'coast';
-export type Disaster = 'none' | 'typhoon' | 'tornado' | 'quake' | 'tsunami';
+export type Disaster = 'none' | 'typhoon' | 'tornado' | 'quake' | 'tsunami' | 'whirlpool';
 /** 朋友在哪：地上、高处（树上、屋顶上，要吊车或者飞上去）、水上（木板、冰山、小岛） */
 export type Spot = 'ground' | 'high' | 'water';
 export type Power = 1 | 2 | 3;
@@ -26,7 +26,8 @@ export type Cause =
   | 'sucked'
   | 'shookOver'
   | 'fellInCrack'
-  | 'washedAway';
+  | 'washedAway'
+  | 'whirled';
 
 /** 载具怎么走：开、漂、飞 */
 export type Mode = 'drive' | 'float' | 'fly';
@@ -55,6 +56,7 @@ export const POWER = {
   tornado: [0, 1, 2, 2.6],
   quake: [0, 1, 1.6, 2.4],
   tsunami: [0, 0.6, 1, 1.4],
+  whirlpool: [0, 3, 4.2, 5.4],
 };
 
 /** 比值低于这个是 3 星 */
@@ -139,6 +141,12 @@ function ratio(
       // 在地上：浪冲正面（越宽越高挨得越多），重量抓住地面
       const push = POWER.tsunami[c.power] * s.width * s.top * (s.pierce ? 0.7 : 1);
       return { ratio: push / s.weight, cause: 'washedAway' };
+    }
+    case 'whirlpool': {
+      if (fly || !onWater) return { ratio: 0, cause: null };
+      // 往中间吸：船越长越能横在漩涡上，卷不进去；重一点也有点用
+      const hold = s.length + s.weight * 0.2;
+      return { ratio: POWER.whirlpool[c.power] / hold, cause: 'whirled' };
     }
   }
 }

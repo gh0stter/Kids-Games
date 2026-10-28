@@ -126,9 +126,10 @@ export class Rescue {
   /** 提示到第三级时，零件盘里这些零件闪光 */
   protected readonly glow = signal<Set<PartKind>>(new Set());
   protected readonly confirmClear = signal(false);
-  protected readonly newSticker = signal<Sticker | null>(null);
 
   protected readonly vehicle = computed(() => assemble(this.grid()));
+  /** 地图、贴纸本、拼装是整页的，把 3D 场面整个盖住 */
+  private readonly covered = computed(() => ['map', 'book', 'build'].includes(this.screen()));
   protected readonly checked = computed(() => check(this.grid()));
   protected readonly name = computed(() =>
     this.checked().problem ? '' : vehicleName(this.vehicle()),
@@ -142,6 +143,7 @@ export class Rescue {
   private badTimer = 0;
   private confirmTimer = 0;
   private lines: number[] = [];
+  private destroyed = false;
 
   constructor() {
     this.progress.set(this.load());
@@ -156,6 +158,7 @@ export class Rescue {
         sfx: (k) => this.sfx(k),
       });
       this.journey.setup(this.vehicle(), this.mission());
+      this.journey.paused = this.covered();
       // 开发模式下给测试脚本用：rescueJourney.timeScale = 3 可以让动画快一点
       if (isDevMode()) Object.assign(window, { rescue: this, rescueJourney: this.journey });
     });
@@ -176,8 +179,14 @@ export class Rescue {
       const bad = [...this.bad()].map((k) => k.split(',').map(Number) as [number, number]);
       this.preview?.setVehicle(v, bad);
     });
+    // 场面被盖住的时候不用画
+    effect(() => {
+      const covered = this.covered();
+      if (this.journey) this.journey.paused = covered;
+    });
 
     inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
       clearTimeout(this.badTimer);
       clearTimeout(this.confirmTimer);
       this.lines.forEach(clearTimeout);
@@ -428,8 +437,9 @@ export class Rescue {
     this.screen.set('run');
     journey.setup(v, m);
     await new Promise((r) => setTimeout(r, 1500));
+    if (this.destroyed) return;
     await journey.run(m, outcome);
-    this.finish(m, outcome);
+    if (!this.destroyed) this.finish(m, outcome);
   }
 
   private finish(m: Mission, o: Outcome): void {
@@ -449,7 +459,6 @@ export class Rescue {
       this.save();
     }
     this.result.set({ outcome: o, sticker, tries });
-    this.newSticker.set(sticker);
     this.screen.set('result');
 
     if (o.ok) {

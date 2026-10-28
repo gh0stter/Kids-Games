@@ -117,6 +117,8 @@ export class Journey {
   private wideGoal = 0;
   /** 测试脚本用：动画加速 */
   timeScale = 1;
+  /** 被地图、拼装这些整页画面盖住的时候不用画 */
+  paused = false;
 
   private raf = 0;
   private last = 0;
@@ -475,6 +477,8 @@ export class Journey {
   /** 黄熊队长坐在最靠中间的车头上 */
   private seatBear(): void {
     const heads = this.body.children.filter((p) => PARTS[block(p).part].slot === 'head');
+    // 还没拼好（没有车头）的车也会摆出来当背景，那就先不坐
+    if (!heads.length) return;
     const mid = ((this.vehicle?.width ?? 1) - 1) / 2;
     const seat = heads.reduce((a, b) =>
       Math.abs(block(a).z - mid) <= Math.abs(block(b).z - mid) ? a : b,
@@ -484,7 +488,7 @@ export class Journey {
     seat.add(this.bear);
   }
 
-  /** 朋友坐哪：车头后面那一块（靠中间），没有的话就坐车尾 */
+  /** 朋友坐哪：最靠前、靠中间的那块非车头（出发的车一定有车尾，所以总能找到） */
   private friendSeat(): THREE.Object3D {
     const mid = ((this.vehicle?.width ?? 1) - 1) / 2;
     const others = this.body.children.filter((p) => PARTS[block(p).part].slot !== 'head');
@@ -1237,9 +1241,9 @@ export class Journey {
   // ---------------------------------------------------------------- 粒子 / 动画
 
   private tween(dur: number, update: (p: number, dt: number) => void): Promise<void> {
+    // 场景拆掉以后就一直等着：不然后面的演出会一下子跑完，在别的页面上说话
     return new Promise((done) => {
-      if (this.disposed) return done();
-      this.tweens.push({ t: 0, dur, update, done });
+      if (!this.disposed) this.tweens.push({ t: 0, dur, update, done });
     });
   }
 
@@ -1302,7 +1306,10 @@ export class Journey {
 
   private readonly frame = (now: number): void => {
     this.raf = requestAnimationFrame(this.frame);
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible' || this.paused) {
+      this.last = 0;
+      return;
+    }
     const dt = (this.last ? Math.min(0.05, (now - this.last) / 1000) : 0) * this.timeScale;
     this.last = now;
     this.time += dt;

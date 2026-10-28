@@ -1,5 +1,5 @@
 import { PARTS, PartKind } from './parts';
-import { Cause, Challenge, Disaster, Outcome, Terrain } from './sim';
+import { Cause, Challenge, Disaster, Outcome, Power, Terrain } from './sim';
 import { VEHICLE_NAMES } from './vehicle';
 
 export type Friend = 'koala' | 'chick' | 'polar';
@@ -157,6 +157,11 @@ export const FREE_COMBOS: Record<Terrain, Disaster[]> = {
   coast: ['none', 'typhoon', 'tsunami'],
 };
 export const freeBrief = (friend: Friend): string => `去救${FRIENDS[friend].name}吧！`;
+/** 自由模式能抽到的强度：海上的龙卷风只有小的（船抓不住地，太强就没法拼了） */
+export const freePowers = (terrain: Terrain, disaster: Disaster): Power[] =>
+  terrain === 'ocean' && disaster === 'tornado' ? [1] : [1, 2, 2, 3];
+/** 自由模式地震的裂缝宽度（0 表示没有裂缝） */
+export const FREE_CRACKS = [0, 2, 3];
 
 // ---------------------------------------------------------------- 原理贴纸
 

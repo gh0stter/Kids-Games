@@ -5,8 +5,8 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { MISSIONS, principles } from './rescue-data';
-import { Cause, simulate } from './sim';
+import { FREE_COMBOS, FREE_CRACKS, freePowers, MISSIONS, principles } from './rescue-data';
+import { Cause, Challenge, simulate, Spot, Terrain } from './sim';
 import { assemble, check, gridFrom, vehicleName } from './vehicle';
 
 const mission = (id: number) => MISSIONS.find((m) => m.id === id)!;
@@ -142,6 +142,50 @@ describe('关卡', () => {
     assert.equal(cause(simulate(CRANE, mission(10))), 'shookOver');
     assert.equal(simulate(DAMPER_CRANE, mission(10)).ok, true);
     assert.equal(simulate(WIDE_HEAVY_CRANE, mission(10)).ok, true);
+  });
+});
+
+describe('自由模式', () => {
+  // 孩子可能会拼的几种车，自由模式抽到的每一种情况，至少有一台能过
+  const TRIED = [
+    CAR,
+    LONG_CAR,
+    BOAT,
+    WIDE_BOAT,
+    HELI,
+    AMPHIBIOUS,
+    WIDE_AMPHIBIOUS,
+    WIDE_HEAVY_CRANE,
+    DAMPER_CRANE,
+    DIGGER,
+    ROLLER,
+    // 船上放个搅拌罐，压得住
+    v('boatStern|hull|mixer|boatBow'),
+    v('truckTail|bucket|wheels|wheels|truckCab'),
+    // 吊车加铲斗：够得着，又抓得住地
+    v('truckTail|bucket|crane|truckCab'),
+  ];
+
+  it('每一种组合都有解', () => {
+    const spots: Record<Terrain, Spot[]> = {
+      land: ['ground', 'high'],
+      ocean: ['water'],
+      coast: ['ground'],
+    };
+    for (const terrain of Object.keys(FREE_COMBOS) as Terrain[]) {
+      for (const disaster of FREE_COMBOS[terrain]) {
+        for (const power of new Set(freePowers(terrain, disaster))) {
+          for (const spot of spots[terrain]) {
+            const cracks = disaster === 'quake' && spot !== 'high' ? FREE_CRACKS : [0];
+            for (const crack of cracks) {
+              const c: Challenge = { terrain, disaster, power, spot, crack };
+              const solved = TRIED.some((veh) => simulate(veh, c).ok);
+              assert.ok(solved, `没有解：${JSON.stringify(c)}`);
+            }
+          }
+        }
+      }
+    }
   });
 });
 

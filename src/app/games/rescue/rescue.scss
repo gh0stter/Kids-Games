@@ -177,7 +177,8 @@ header {
   }
 }
 
-.map-buttons {
+.map-buttons,
+.book .back {
   position: fixed;
   right: calc(env(safe-area-inset-right) + 20px);
   bottom: calc(env(safe-area-inset-bottom) + 20px);
@@ -210,12 +211,6 @@ header {
   }
 }
 
-.book .back {
-  position: fixed;
-  right: calc(env(safe-area-inset-right) + 20px);
-  bottom: calc(env(safe-area-inset-bottom) + 20px);
-}
-
 /* ---------------------------------------------------------------- 任务卡 */
 
 .brief {
@@ -242,14 +237,6 @@ header {
 
 .card-icon {
   font-size: 92px;
-}
-
-.power-1 {
-  font-size: 66px;
-}
-
-.power-3 {
-  font-size: 120px;
 }
 
 .where {
@@ -437,6 +424,15 @@ header {
   border-radius: 999px;
   font-size: 26px;
   white-space: nowrap;
+}
+
+.point {
+  position: absolute;
+  bottom: -46px;
+  left: calc(50% + 22px);
+  font-size: 56px;
+  pointer-events: none;
+  animation: bob 1s ease-in-out infinite;
 }
 
 .go {

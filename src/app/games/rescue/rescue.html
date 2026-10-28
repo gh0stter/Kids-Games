@@ -81,7 +81,7 @@
           <span class="card-icon">{{ terrainEmoji[mission().terrain] }}</span>
           <span class="plus">＋</span>
           <!-- 灾害越强，图标越大 -->
-          <span class="card-icon" [class]="'power-' + mission().power">{{
+          <span class="card-icon" [style.font-size.px]="[66, 92, 120][mission().power - 1]">{{
             disasterEmoji[mission().disaster]
           }}</span>
           <span class="plus">→</span>
@@ -166,6 +166,10 @@
             <button class="go" [class.ready]="!checked().problem" aria-label="出发" (click)="go()">
               🚀
             </button>
+            <!-- 第一次玩：指一下出发按钮 -->
+            @if (mission().id === 1 && !stars(1) && !checked().problem) {
+              <span class="point">👆</span>
+            }
           </div>
         </div>
 

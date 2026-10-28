@@ -294,7 +294,24 @@ export const PROBLEM_LINES = {
   headFront: '车头前面不能再接东西哦！',
   tailBack: '车尾后面不能再接东西哦！',
 } as const;
-export const nameLine = (name: string): string => `你拼了一台${name}！`;
+/** 量词：船是一艘，会飞的是一架，火车是一列，机器是一台，其他车是一辆 */
+export const MEASURES: Record<string, string> = {
+  全能救援机: '架',
+  会飞的船: '艘',
+  飞天车: '辆',
+  直升机: '架',
+  水陆两用车: '辆',
+  船: '艘',
+  小飞机: '架',
+  吊车: '辆',
+  挖掘车: '辆',
+  搅拌车: '辆',
+  压路机: '台',
+  自卸车: '辆',
+  火车: '列',
+  小汽车: '辆',
+};
+export const nameLine = (name: string): string => `你拼了一${MEASURES[name] ?? '辆'}${name}！`;
 export const TOO_HEAVY = '太重了，飞不起来！';
 export const STONES_ON = '装上石头啦！';
 export const STONES_OFF = '石头倒掉啦！';

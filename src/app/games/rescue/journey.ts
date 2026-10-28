@@ -961,7 +961,8 @@ export class Journey {
         // 两头矮一点，看不到切口
         sm.height = height * Math.min(1, (12 - Math.abs(sm.w)) / 4);
       }
-      wave.update(samples, toWorld, -2, WATER_Y, len, this.time);
+      // 浪的水面比海面高一点：两个面重叠在同一个高度会一直闪
+      wave.update(samples, toWorld, -2, WATER_Y + 0.03, len, this.time);
       if (o.mode !== 'fly') {
         // 在地上挡不住的：被浪推着往后冲，打着转
         if (washed && surface(this.carrier.position.x) > 0.3) {

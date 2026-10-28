@@ -1585,7 +1585,8 @@ export class World {
     const lanes = this.lanes;
     const count = lanes.length;
     const height = this.waveH * FLOOR_H * this.waveRise;
-    const base = SEA_Y + 0.3 * this.waveRise;
+    // 淹过的水面至少比海面高一点：浪刚涌起和退下去时两个面重叠会闪
+    const base = SEA_Y + 0.03 + 0.3 * this.waveRise;
     const len = THREE.MathUtils.clamp(height * 0.5, 1, 6);
     const at = (w: number, f: (l: Lane) => number): number => {
       const x = THREE.MathUtils.clamp(w - 0.5, 0, count - 1);

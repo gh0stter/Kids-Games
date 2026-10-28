@@ -5,9 +5,17 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { FREE_COMBOS, FREE_CRACKS, freePowers, MISSIONS, principles } from './rescue-data';
+import {
+  FREE_COMBOS,
+  FREE_CRACKS,
+  freePowers,
+  MEASURES,
+  MISSIONS,
+  nameLine,
+  principles,
+} from './rescue-data';
 import { Cause, Challenge, simulate, Spot, Terrain } from './sim';
-import { assemble, check, gridFrom, vehicleName } from './vehicle';
+import { assemble, check, gridFrom, VEHICLE_NAMES, vehicleName } from './vehicle';
 
 const mission = (id: number) => MISSIONS.find((m) => m.id === id)!;
 const v = (...rows: string[]) => assemble(gridFrom(rows));
@@ -199,5 +207,15 @@ describe('贴纸', () => {
     assert.equal(first(DIGGER, 4), 'anchor');
     assert.equal(first(WIDE_BOAT, 6), 'wide');
     assert.equal(first(DAMPER_CRANE, 10), 'damper');
+  });
+});
+
+describe('台词', () => {
+  it('每种车都有对的量词', () => {
+    for (const name of VEHICLE_NAMES) assert.ok(MEASURES[name], `${name} 没有量词`);
+    assert.equal(nameLine('船'), '你拼了一艘船！');
+    assert.equal(nameLine('直升机'), '你拼了一架直升机！');
+    assert.equal(nameLine('火车'), '你拼了一列火车！');
+    assert.equal(nameLine('小汽车'), '你拼了一辆小汽车！');
   });
 });

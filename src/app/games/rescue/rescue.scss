@@ -303,9 +303,43 @@ header {
 }
 
 .top {
-  height: 64px;
+  align-self: stretch;
+  height: 70px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-left: 84px;
+}
+
+/* 车库：最近出发过的车，点一下开出来 */
+.garage {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+
+  .name-tag {
+    position: absolute;
+    top: -12px;
+    left: 12px;
+    padding: 1px 10px;
+    font-size: 16px;
+  }
+}
+
+.car {
+  width: 68px;
+  height: 51px;
+  border-radius: 10px;
+  background: #e8f4f8;
+
+  img {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
 }
 
 .chip {

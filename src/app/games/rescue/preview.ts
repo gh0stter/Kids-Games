@@ -168,6 +168,27 @@ export class Preview {
     this.table?.scale.set(this.zoom / 8.3, 1, this.zoom / 8.3);
   }
 
+  /** 车库里的小图：从固定角度画一张、不带转台，缩小成 160×120 */
+  snapshot(): string {
+    const angle = this.turntable.rotation.y;
+    this.turntable.rotation.y = -0.5;
+    if (this.table) this.table.visible = false;
+    this.renderer.render(this.scene, this.camera);
+    const out = document.createElement('canvas');
+    out.width = 160;
+    out.height = 120;
+    // 按比例裁成 4:3，只要中间车在的那一块
+    const { width: w, height: h } = this.canvas;
+    const scale = Math.min(w / 4, h / 3) * 0.6;
+    const [sw, sh] = [scale * 4, scale * 3];
+    out
+      .getContext('2d')
+      ?.drawImage(this.canvas, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, 160, 120);
+    if (this.table) this.table.visible = true;
+    this.turntable.rotation.y = angle;
+    return out.toDataURL('image/webp', 0.8);
+  }
+
   private readonly onDown = (e: PointerEvent): void => {
     this.dragX = e.clientX;
     this.canvas.setPointerCapture(e.pointerId);

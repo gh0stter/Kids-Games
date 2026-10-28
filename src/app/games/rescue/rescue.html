@@ -114,6 +114,16 @@
             }
             {{ placeEmoji[mission().place] }}
           </span>
+          @if (progress().garage.length) {
+            <div class="garage paper">
+              <span class="name-tag">车库</span>
+              @for (car of progress().garage; track car.img) {
+                <button class="car" aria-label="车库里的车" (click)="unpark(car.grid)">
+                  <img [src]="car.img" alt="" draggable="false" />
+                </button>
+              }
+            </div>
+          }
         </div>
 
         <div class="main">

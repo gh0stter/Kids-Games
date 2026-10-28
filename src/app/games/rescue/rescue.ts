@@ -63,7 +63,12 @@ interface Progress {
   rescued: Partial<Record<Friend, number>>;
   /** 上一次拼的车（回来接着拼） */
   grid: Grid | null;
+  /** 车库：最近出发过的几台车，新的在前 */
+  garage: { grid: Grid; img: string }[];
 }
+
+const GARAGE_SIZE = 6;
+const NEW_PROGRESS: Progress = { stars: {}, stickers: [], rescued: {}, grid: null, garage: [] };
 
 interface Result {
   outcome: Outcome;
@@ -113,12 +118,7 @@ export class Rescue {
   protected readonly grid = signal<Grid>(starterGrid());
   protected readonly tool = signal<Tool>('wheels');
   protected readonly thumbs = signal<Record<string, string>>({});
-  protected readonly progress = signal<Progress>({
-    stars: {},
-    stickers: [],
-    rescued: {},
-    grid: null,
-  });
+  protected readonly progress = signal<Progress>(NEW_PROGRESS);
   protected readonly result = signal<Result | null>(null);
   protected readonly tug = signal<number | null>(null);
   /** 出问题的格子闪一闪 */
@@ -392,7 +392,30 @@ export class Rescue {
       this.badTimer = setTimeout(() => this.bad.set(new Set()), 1600);
       return;
     }
+    this.park();
     void this.run();
+  }
+
+  /** 出发的车停进车库（一样的车只留一台），最多留 GARAGE_SIZE 台 */
+  private park(): void {
+    const img = this.preview?.snapshot();
+    if (!img) return;
+    const key = JSON.stringify(this.grid());
+    const garage = [
+      { grid: this.grid(), img },
+      ...this.progress().garage.filter((g) => JSON.stringify(g.grid) !== key),
+    ].slice(0, GARAGE_SIZE);
+    this.progress.update((p) => ({ ...p, garage }));
+    this.save();
+  }
+
+  /** 从车库里开出一台 */
+  protected unpark(grid: Grid): void {
+    this.sound.good();
+    this.grid.set(grid.map((row) => row.slice()));
+    const { problem } = check(grid);
+    if (!problem) this.speech.say(nameLine(vehicleName(assemble(grid))));
+    this.saveSoon();
   }
 
   private async run(): Promise<void> {
@@ -526,11 +549,11 @@ export class Rescue {
   private load(): Progress {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return { stars: {}, stickers: [], rescued: {}, grid: null, ...JSON.parse(raw) };
+      if (raw) return { ...NEW_PROGRESS, ...JSON.parse(raw) };
     } catch {
       // 读不了就从头开始
     }
-    return { stars: {}, stickers: [], rescued: {}, grid: null };
+    return NEW_PROGRESS;
   }
 
   private saveTimer = 0;

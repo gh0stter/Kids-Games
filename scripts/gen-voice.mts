@@ -11,10 +11,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import * as prettier from 'prettier';
-import { CHEER_LINES, VOICE_LINES } from '../src/app/voice-lines';
+import { BEAR_LINES, CHEER_LINES, VOICE_LINES } from '../src/app/voice-lines';
 
 const NORMAL = { voice: 'zh-CN-XiaoxiaoNeural', rate: '-10%' };
 const CHEER = { voice: 'zh-CN-XiaoyiNeural', rate: '-10%' };
+/** 黄熊队长（拼拼救援队） */
+const BEAR = { voice: 'zh-CN-YunxiaNeural', rate: '+0%' };
 
 const OUT_DIR = 'public/voice';
 const MANIFEST = 'src/app/core/voice-files.ts';
@@ -29,11 +31,12 @@ const jobs = new Map<string, { text: string; voice: string; rate: string; file: 
 for (const [lines, { voice, rate }] of [
   [VOICE_LINES, NORMAL],
   [CHEER_LINES, CHEER],
+  [BEAR_LINES, BEAR],
 ] as const) {
   for (const text of lines) {
     const file =
       createHash('sha1').update(`${voice}|${rate}|${text}`).digest('hex').slice(0, 12) + '.mp3';
-    // 同一句话同时出现在两边时，夸奖的声音优先
+    // 同一句话同时出现在几边时，后面的声音优先
     jobs.set(text, { text, voice, rate, file });
   }
 }

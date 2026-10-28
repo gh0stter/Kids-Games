@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "deploy": "ng build && bash scripts/deploy.sh",
     "test": "ng test",
+    "test:rescue": "tsx --test src/app/games/rescue/rescue.spec.ts",
     "voice": "tsx scripts/gen-voice.mts",
     "tools:setup": "python3 -m venv .venv && .venv/bin/pip install edge-tts fonttools brotli",
     "font": ".venv/bin/python scripts/subset-font.py"

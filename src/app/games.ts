@@ -60,4 +60,12 @@ export const GAMES: GameInfo[] = [
     intro: '盖高高的楼，挡住海啸！',
     load: () => import('./games/tsunami/tsunami').then((m) => m.Tsunami),
   },
+  {
+    path: 'rescue',
+    title: '拼拼救援队',
+    emoji: '🛟',
+    color: 'var(--orange)',
+    intro: '拼一台救援车，出发去救好朋友！',
+    load: () => import('./games/rescue/rescue').then((m) => m.Rescue),
+  },
 ];

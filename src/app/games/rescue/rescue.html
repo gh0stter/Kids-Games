@@ -1,0 +1,253 @@
+<app-game-shell (start)="start()">
+  <!-- 出发以后的 3D 场面；任务卡和结果卡浮在它上面 -->
+  <div class="stage"><canvas #stage></canvas></div>
+
+  @switch (screen()) {
+    @case ('map') {
+      <div class="screen map">
+        <header class="paper"><span class="buoy">🛟</span>拼拼救援队</header>
+
+        <div class="friends paper">
+          <span class="name-tag">好朋友</span>
+          @for (f of friendKeys; track f) {
+            <span class="friend">
+              @if (thumbs()[f]; as src) {
+                <img [src]="src" [alt]="friends[f].name" />
+              } @else {
+                {{ friends[f].emoji }}
+              }
+              <span class="hearts">❤️ {{ progress().rescued[f] ?? 0 }}</span>
+            </span>
+          }
+        </div>
+
+        <nav class="path">
+          @for (m of missions; track m.id) {
+            <button
+              class="stop"
+              [class.locked]="!unlocked(m.id)"
+              [class.done]="stars(m.id) > 0"
+              [attr.aria-label]="'第' + m.id + '关'"
+              (click)="openMission(m)"
+            >
+              <span class="num">{{ m.id }}</span>
+              <span class="big">{{
+                m.disaster === 'none' ? terrainEmoji[m.terrain] : disasterEmoji[m.disaster]
+              }}</span>
+              @if (thumbs()[m.friend]; as src) {
+                <img class="who" [src]="src" alt="" />
+              }
+              @if (!unlocked(m.id)) {
+                <span class="lock">🔒</span>
+              }
+              <span class="stars">
+                @for (i of [1, 2, 3]; track i) {
+                  <span [class.on]="stars(m.id) >= i">★</span>
+                }
+              </span>
+            </button>
+          }
+        </nav>
+
+        <div class="map-buttons">
+          <button class="round free" aria-label="自由模式" (click)="openFree()">🎲</button>
+          <button class="round book" aria-label="贴纸本" (click)="openBook()">📒</button>
+        </div>
+      </div>
+    }
+
+    @case ('book') {
+      <div class="screen book">
+        <header class="paper">📒 贴纸本</header>
+        <div class="stickers">
+          @for (s of stickerOrder; track s) {
+            <button
+              class="sticker"
+              [class.have]="progress().stickers.includes(s)"
+              (click)="saySticker(s)"
+            >
+              {{ progress().stickers.includes(s) ? stickers[s].emoji : '❔' }}
+            </button>
+          }
+        </div>
+        <button class="round back" aria-label="回地图" (click)="toMap()">🗺️</button>
+      </div>
+    }
+
+    @case ('brief') {
+      <div class="brief paper pop-in">
+        <span class="name-tag">{{ mission().id ? '第' + mission().id + '关' : '自由模式' }}</span>
+        <div class="card-row">
+          <span class="card-icon">{{ terrainEmoji[mission().terrain] }}</span>
+          <span class="plus">＋</span>
+          <span class="card-icon">{{ disasterEmoji[mission().disaster] }}</span>
+          <span class="plus">→</span>
+          @if (thumbs()[mission().friend]; as src) {
+            <img class="card-friend" [src]="src" [alt]="friends[mission().friend].name" />
+          } @else {
+            <span class="card-icon">{{ friends[mission().friend].emoji }}</span>
+          }
+        </div>
+        <div class="card-buttons">
+          @if (!mission().id) {
+            <button class="round dice" aria-label="再抽一次" (click)="rollFree()">🎲</button>
+          }
+          <button class="round back" aria-label="回地图" (click)="toMap()">🗺️</button>
+          <button class="go-build" aria-label="去拼车" (click)="toBuild()">🔧</button>
+        </div>
+      </div>
+    }
+
+    @case ('build') {
+      <div class="screen builder">
+        <div class="top">
+          <span class="chip paper">
+            {{ terrainEmoji[mission().terrain] }} {{ disasterEmoji[mission().disaster] }}
+            @if (thumbs()[mission().friend]; as src) {
+              <img [src]="src" alt="" />
+            }
+          </span>
+        </div>
+
+        <div class="main">
+          <div
+            #board
+            class="grid"
+            (pointerdown)="onGridDown($event)"
+            (pointermove)="onGridMove($event)"
+            (pointerup)="onGridUp($event)"
+            (pointercancel)="onGridUp($event)"
+          >
+            @for (r of rows; track r) {
+              @for (c of cols; track c) {
+                @let kind = grid()[r][c];
+                <div
+                  class="cell"
+                  [class.filled]="kind"
+                  [class.bad]="isBad(r, c)"
+                  [attr.data-cell]="r + ',' + c"
+                >
+                  @if (kind) {
+                    @if (thumbs()[kind]; as src) {
+                      <img [src]="src" [alt]="parts[kind].name" draggable="false" />
+                    } @else {
+                      <span class="label">{{ parts[kind].name }}</span>
+                    }
+                  }
+                </div>
+              }
+            }
+          </div>
+
+          <div class="side">
+            <div class="turntable">
+              <canvas #preview></canvas>
+              @if (name()) {
+                <span class="vehicle-name paper">{{ name() }}</span>
+              }
+            </div>
+            <button class="go" [class.ready]="!checked().problem" aria-label="出发" (click)="go()">
+              🚀
+            </button>
+          </div>
+        </div>
+
+        <div class="tray">
+          @for (group of [tray.head.concat(tray.tail), tray.mid]; track $index) {
+            <div class="tray-row">
+              @for (kind of group; track kind) {
+                <button
+                  class="part"
+                  [class.sel]="tool() === kind"
+                  [class.glow]="glow().has(kind)"
+                  [class.head]="parts[kind].slot === 'head'"
+                  [class.tail]="parts[kind].slot === 'tail'"
+                  [attr.aria-label]="parts[kind].name"
+                  (click)="choose(kind)"
+                >
+                  @if (thumbs()[kind]; as src) {
+                    <img [src]="src" alt="" draggable="false" />
+                  } @else {
+                    {{ parts[kind].name }}
+                  }
+                </button>
+                @if (kind === tray.head[tray.head.length - 1]) {
+                  <span class="sep"></span>
+                }
+              }
+              @if ($index === 1) {
+                <span class="sep"></span>
+                <button
+                  class="part tool"
+                  [class.sel]="tool() === 'erase'"
+                  aria-label="拆掉"
+                  (click)="choose('erase')"
+                >
+                  🧹
+                </button>
+                <button
+                  class="part tool clear"
+                  [class.confirm]="confirmClear()"
+                  aria-label="全部拆掉"
+                  (click)="clearAll()"
+                >
+                  {{ confirmClear() ? '❓' : '🗑️' }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('run') {
+      @if (tug() !== null) {
+        <div class="tug paper">
+          <span class="side-icon">{{ disasterEmoji[mission().disaster] }}</span>
+          <span class="rope">
+            <span class="knot" [style.left.%]="100 / (1 + tug()!)"></span>
+          </span>
+          <span class="side-icon">
+            @if (thumbs()['bear']; as src) {
+              <img [src]="src" alt="" />
+            }
+          </span>
+        </div>
+      }
+    }
+
+    @case ('result') {
+      @if (result(); as r) {
+        <div class="result paper pop-in">
+          <div class="verdict">
+            @if (r.outcome.ok) {
+              @for (i of [1, 2, 3]; track i) {
+                <span class="star" [class.on]="r.outcome.stars >= i">★</span>
+              }
+            } @else {
+              <span class="oops">😵</span>
+            }
+            @if (r.sticker) {
+              <span class="won-sticker">{{ stickers[r.sticker].emoji }}</span>
+            }
+          </div>
+          <div class="result-buttons">
+            <button class="round" aria-label="回地图" (click)="toMap()">🗺️</button>
+            <button class="round" aria-label="再来一次" (click)="again()">🔁</button>
+            <button
+              class="round fix"
+              [class.big]="!r.outcome.ok"
+              aria-label="再改一改"
+              (click)="retry()"
+            >
+              🔧
+            </button>
+            @if (r.outcome.ok && mission().id && mission().id < missions.length) {
+              <button class="round next big" aria-label="下一关" (click)="next()">▶</button>
+            }
+          </div>
+        </div>
+      }
+    }
+  }
+</app-game-shell>

@@ -5,6 +5,7 @@ import * as balloon from './games/balloon/balloon-data';
 import * as count from './games/count/count-data';
 import * as draw from './games/draw/draw-data';
 import * as memory from './games/memory/memory-data';
+import * as rescue from './games/rescue/rescue-data';
 import * as shapes from './games/shapes/shapes-data';
 import * as tsunami from './games/tsunami/tsunami-data';
 import * as menu from './menu/menu-data';
@@ -23,6 +24,7 @@ export const VOICE_LINES: string[] = [
   ...memory.VOICE_LINES,
   ...shapes.VOICE_LINES,
   ...tsunami.VOICE_LINES,
+  ...rescue.VOICE_LINES,
 ];
 
 /** 夸奖类的话，用更活泼的声音 */
@@ -33,4 +35,8 @@ export const CHEER_LINES: string[] = [
   ...memory.CHEER_LINES,
   ...shapes.CHEER_LINES,
   ...tsunami.CHEER_LINES,
+  ...rescue.CHEER_LINES,
 ];
+
+/** 拼拼救援队里黄熊队长说的话，用童声 */
+export const BEAR_LINES: string[] = [...rescue.BEAR_LINES];

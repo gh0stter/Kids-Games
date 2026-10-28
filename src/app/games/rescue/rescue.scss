@@ -1,0 +1,612 @@
+:host {
+  display: block;
+  height: 100%;
+  background: #bfe7f2;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+}
+
+/* 盖住 3D 场面的整页画面：地图、贴纸本、拼装 */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 12px);
+  background:
+    radial-gradient(circle at 20px 20px, rgba(255, 255, 255, 0.55) 6px, transparent 7px) 0 0 / 40px
+      40px,
+    linear-gradient(var(--sky), #e6f6ee 70%);
+}
+
+header {
+  padding: 8px 40px 10px;
+  border-radius: 999px / 70px 70px 90px 90px;
+  font-size: 40px;
+  letter-spacing: 3px;
+}
+
+.buoy {
+  margin-right: 10px;
+}
+
+.round {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 44px;
+  box-shadow: 0 6px 0 var(--paper-edge);
+
+  &:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 var(--paper-edge);
+  }
+
+  &.big {
+    width: 110px;
+    height: 110px;
+    font-size: 58px;
+    color: #fff;
+    background: var(--green);
+    box-shadow:
+      var(--bevel),
+      0 7px 0 #4a9e77;
+  }
+}
+
+/* ---------------------------------------------------------------- 地图 */
+
+.friends {
+  position: relative;
+  display: flex;
+  gap: 26px;
+  margin-top: 22px;
+  padding: 14px 30px 8px;
+  border-radius: var(--radius);
+
+  .name-tag {
+    position: absolute;
+    top: -14px;
+    left: 24px;
+  }
+}
+
+.friend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 46px;
+
+  img {
+    width: 76px;
+    height: 76px;
+  }
+}
+
+.hearts {
+  font-size: 20px;
+}
+
+.path {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  align-content: center;
+  gap: 30px 34px;
+}
+
+.stop {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow:
+    var(--bevel),
+    0 7px 0 var(--paper-edge);
+
+  &:nth-child(even) {
+    transform: translateY(26px);
+  }
+
+  &.done {
+    background: #fff1b8;
+  }
+
+  &.locked > :not(.lock, .num) {
+    opacity: 0.35;
+  }
+
+  .num {
+    position: absolute;
+    top: -8px;
+    left: -6px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--orange);
+    color: #fff;
+    font-size: 22px;
+    line-height: 38px;
+  }
+
+  .big {
+    font-size: 54px;
+  }
+
+  .who {
+    position: absolute;
+    right: -10px;
+    bottom: 6px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .lock {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 44px;
+  }
+
+  .stars {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -30px;
+    font-size: 24px;
+    color: #d8ccb0;
+
+    .on {
+      color: #ffb800;
+    }
+  }
+}
+
+.map-buttons {
+  position: fixed;
+  right: calc(env(safe-area-inset-right) + 20px);
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+  display: flex;
+  gap: 16px;
+}
+
+/* ---------------------------------------------------------------- 贴纸本 */
+
+.stickers {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 120px);
+  align-content: center;
+  gap: 24px;
+}
+
+.sticker {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 64px;
+  opacity: 0.6;
+
+  &.have {
+    opacity: 1;
+    background: var(--paper);
+    box-shadow: 0 6px 0 var(--paper-edge);
+  }
+}
+
+.book .back {
+  position: fixed;
+  right: calc(env(safe-area-inset-right) + 20px);
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+}
+
+/* ---------------------------------------------------------------- 任务卡 */
+
+.brief {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  translate: -50% -50%;
+  padding: 34px 40px 26px;
+  border-radius: var(--radius);
+
+  .name-tag {
+    position: absolute;
+    top: -14px;
+    left: 30px;
+  }
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.card-icon {
+  font-size: 92px;
+}
+
+.card-friend {
+  width: 130px;
+  height: 130px;
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.plus {
+  font-size: 40px;
+  color: var(--ink-soft);
+}
+
+.card-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.go-build {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: var(--orange);
+  font-size: 66px;
+  box-shadow:
+    var(--bevel),
+    0 8px 0 #c97a2c;
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------- 拼装 */
+
+.builder {
+  --cell: min(90px, calc((100vw - 470px) / 6.3), calc((100dvh - 330px) / 4.3));
+  padding-bottom: 0;
+}
+
+.top {
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 22px;
+  border-radius: 999px;
+  font-size: 40px;
+
+  img {
+    width: 52px;
+    height: 52px;
+  }
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, var(--cell));
+  grid-auto-rows: var(--cell);
+  gap: 5px;
+  padding: 12px;
+  border-radius: 26px;
+  background: #8fc3d8;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.5);
+  touch-action: none;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  border: 3px dashed rgba(255, 255, 255, 0.75);
+
+  &.filled {
+    border: none;
+    background: rgba(255, 255, 255, 0.85);
+    animation: pop-in 0.25s ease-out;
+  }
+
+  &.bad {
+    background: var(--red);
+    animation: shake 0.4s;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .label {
+    font-size: 15px;
+    pointer-events: none;
+  }
+}
+
+.side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.turntable {
+  position: relative;
+  width: min(380px, calc(100vw - 6.6 * var(--cell) - 120px));
+  height: calc(var(--cell) * 4 - 50px);
+  min-height: 200px;
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+}
+
+.vehicle-name {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  translate: -50% 0;
+  padding: 4px 22px;
+  border-radius: 999px;
+  font-size: 26px;
+  white-space: nowrap;
+}
+
+.go {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  background: #c9c2b4;
+  font-size: 62px;
+  box-shadow:
+    var(--bevel),
+    0 8px 0 #a59d8e;
+
+  &.ready {
+    background: var(--green);
+    box-shadow:
+      var(--bevel),
+      0 8px 0 #4a9e77;
+    animation: bob 1.6s ease-in-out infinite;
+  }
+
+  &:active {
+    transform: translateY(6px);
+  }
+}
+
+/* 木头零件盘，和海啸来啦一样 */
+.tray {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 12px 10px calc(env(safe-area-inset-bottom) + 12px);
+  background: #d9a86a;
+  border-radius: 36px 36px 0 0;
+  box-shadow:
+    inset 0 6px 0 #e9c08a,
+    0 -6px 0 #b98447;
+}
+
+.tray-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.part {
+  width: 68px;
+  height: 68px;
+  padding: 2px;
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 rgba(90, 60, 30, 0.3);
+  font-size: 13px;
+  transition: transform 0.1s;
+
+  /* 车头一圈橙色，车尾一圈蓝色，和网格里一样好认 */
+  &.head {
+    background: #ffe2b8;
+  }
+
+  &.tail {
+    background: #d6ecff;
+  }
+
+  &.tool {
+    font-size: 34px;
+  }
+
+  &.sel {
+    transform: translateY(-8px);
+    box-shadow:
+      0 0 0 5px var(--ink),
+      0 12px 0 rgba(90, 60, 30, 0.3);
+  }
+
+  &.glow {
+    animation: glow 0.9s ease-in-out infinite alternate;
+  }
+
+  &.clear.confirm {
+    background: var(--red);
+    animation: shake 0.4s;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+}
+
+.sep {
+  width: 5px;
+  height: 50px;
+  border-radius: 3px;
+  background: rgba(90, 60, 30, 0.2);
+}
+
+@keyframes glow {
+  to {
+    box-shadow:
+      0 0 0 6px #ffe14d,
+      0 0 26px 10px #ffd000;
+  }
+}
+
+/* ---------------------------------------------------------------- 出发 */
+
+/* 拔河条：左边是灾害，右边是黄熊队长；绳结往谁那边跑谁就赢 */
+.tug {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 16px);
+  left: 50%;
+  z-index: 30;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px;
+  border-radius: 999px;
+}
+
+.side-icon {
+  font-size: 46px;
+
+  img {
+    width: 60px;
+    height: 60px;
+    display: block;
+  }
+}
+
+.rope {
+  position: relative;
+  width: min(380px, 50vw);
+  height: 22px;
+  border-radius: 11px;
+  background: linear-gradient(90deg, #f47c7c 0 41%, #f8d248 41% 50%, #6cc59a 50%);
+}
+
+.knot {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: #fff;
+  border: 6px solid var(--ink);
+  transition: left 0.1s linear;
+}
+
+/* ---------------------------------------------------------------- 结果 */
+
+.result {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 24px);
+  z-index: 30;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  padding: 16px 22px 16px 34px;
+  border-radius: 999px;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 60px;
+  color: #d8ccb0;
+
+  .on {
+    color: #ffb800;
+  }
+}
+
+.oops {
+  font-size: 70px;
+}
+
+.won-sticker {
+  margin-left: 18px;
+  font-size: 76px;
+  animation: pop-in 0.5s ease-out 0.6s backwards;
+}
+
+.result-buttons {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  .fix.big {
+    background: var(--orange);
+    box-shadow:
+      var(--bevel),
+      0 7px 0 #c97a2c;
+  }
+}
+
+@media (orientation: portrait) {
+  .builder {
+    --cell: min(96px, calc((100vw - 90px) / 6.3), calc((100dvh - 640px) / 4.3));
+  }
+
+  .main {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .side {
+    flex-direction: row;
+  }
+
+  .turntable {
+    width: min(460px, 60vw);
+    height: 260px;
+  }
+
+  .path {
+    grid-template-columns: repeat(3, auto);
+  }
+}

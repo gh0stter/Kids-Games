@@ -25,9 +25,12 @@ export class Celebration {
     }
   }
 
-  celebrate(text = pick(PRAISE)): void {
+  /** 返回的 Promise 在夸奖的话说完（或被打断）时完成 */
+  celebrate(text = pick(PRAISE)): Promise<void> {
     this.sound.win();
     this.confetti();
-    setTimeout(() => this.speech.say(text), 300);
+    return new Promise((resolve) =>
+      setTimeout(() => void this.speech.say(text).then(resolve), 300),
+    );
   }
 }

@@ -23,23 +23,39 @@ export class Speech {
     speechSynthesis.addEventListener('voiceschanged', () => this.pickVoice());
   }
 
-  /** 说一句话，会打断正在说的话（避免排队越说越慢） */
-  say(text: string): void {
+  /**
+   * 说一句话，会打断正在说的话（避免排队越说越慢）。
+   * 返回的 Promise 在这句说完（或者被下一句打断）时完成：要等一句话说完再接下一步时用。
+   */
+  say(text: string): Promise<void> {
     const seq = ++this.seq;
     this.stop();
-    const file = VOICE_FILES[text];
-    if (!file) {
-      this.tts(text);
-      return;
-    }
-    void this.load(file).then((buffer) => {
-      if (seq !== this.seq) return;
-      if (buffer) this.play(buffer);
-      else this.tts(text);
+    return new Promise((resolve) => {
+      this.done = resolve;
+      const file = VOICE_FILES[text];
+      if (!file) {
+        this.tts(text);
+        return;
+      }
+      void this.load(file).then((buffer) => {
+        if (seq !== this.seq) return;
+        if (buffer) this.play(buffer);
+        else this.tts(text);
+      });
     });
   }
 
+  /** 当前这句说完时调用（只调用一次） */
+  private done: (() => void) | null = null;
+
+  private finish(): void {
+    const done = this.done;
+    this.done = null;
+    done?.();
+  }
+
   private stop(): void {
+    this.finish();
     this.current?.stop();
     this.current = null;
     if (this.ttsSupported) speechSynthesis.cancel();
@@ -68,23 +84,30 @@ export class Speech {
 
   private play(buffer: AudioBuffer): void {
     const ctx = this.sound.unlock();
-    if (!ctx) return;
+    if (!ctx) return this.finish();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(ctx.destination);
     source.onended = () => {
-      if (this.current === source) this.current = null;
+      if (this.current !== source) return;
+      this.current = null;
+      this.finish();
     };
     source.start();
     this.current = source;
   }
 
   private tts(text: string): void {
-    if (!this.ttsSupported) return;
+    if (!this.ttsSupported) return this.finish();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     if (this.ttsVoice) u.voice = this.ttsVoice;
     u.rate = 0.9;
+    const done = this.done;
+    // 被 cancel 打断时也会触发 end/error；只在还是同一句时才算说完
+    u.onend = u.onerror = () => {
+      if (this.done === done) this.finish();
+    };
     speechSynthesis.speak(u);
   }
 

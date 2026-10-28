@@ -438,10 +438,11 @@ export class Rescue {
     const m = this.mission();
     const v = this.vehicle();
     const outcome = simulate(v, m);
-    this.speech.say(nameLine(this.name()));
+    const named = this.speech.say(nameLine(this.name()));
     this.screen.set('run');
     journey.setup(v, m);
-    await new Promise((r) => setTimeout(r, 1500));
+    // 等"你拼了一艘船！"说完再出发（至少看 1.5 秒车），不然会被队长的"出发"打断
+    await Promise.all([named, new Promise((r) => setTimeout(r, 1500))]);
     if (this.destroyed) return;
     await journey.run(m, outcome);
     if (!this.destroyed) this.finish(m, outcome);
@@ -463,14 +464,23 @@ export class Rescue {
       this.progress.set(p);
       this.save();
     }
-    this.result.set({ outcome: o, sticker, tries });
+    const result: Result = { outcome: o, sticker, tries };
+    this.result.set(result);
     this.screen.set('result');
 
     if (o.ok) {
-      this.celebration.celebrate(THANKS);
-      if (sticker) this.later(2200, () => this.speech.say(STICKERS[sticker].line));
-      else if (o.stars === 2) this.later(2200, () => this.speech.say(WOBBLY));
-      if (m.id && o.stars === 3 && !sticker) this.later(2200, () => this.speech.say(TRY_REAL_TOY));
+      const line = sticker
+        ? STICKERS[sticker].line
+        : o.stars === 2
+          ? WOBBLY
+          : m.id && o.stars === 3
+            ? TRY_REAL_TOY
+            : null;
+      // 谢谢说完再说下一句；这时候已经点了下一关或者再来一次，就不说了
+      void this.celebration.celebrate(THANKS).then(() => {
+        if (line && !this.destroyed && this.result() === result)
+          this.later(300, () => this.speech.say(line));
+      });
     } else {
       const info = CAUSES[o.cause!];
       // 第一次只说发生了什么（演出里说过了），第二次起问一个问题

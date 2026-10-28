@@ -19,8 +19,8 @@ export type Sfx =
   'go' | 'wind' | 'rumble' | 'splash' | 'whoosh' | 'crash' | 'boing' | 'hop' | 'pop';
 
 export interface JourneyCallbacks {
-  /** 旁白说一句 */
-  say(text: string): void;
+  /** 旁白说一句；Promise 在说完（或被打断）时完成 */
+  say(text: string): Promise<void>;
   /** 拔河条：灾害的力气 ÷ 载具的力气；null 收起来 */
   tug(ratio: number | null): void;
   sfx(kind: Sfx): void;
@@ -1220,7 +1220,7 @@ export class Journey {
     const top = partTop(block(seat).part);
     const target = new THREE.Vector3(0, top, 0);
     seat.localToWorld(target);
-    this.cb.say(BEAR.coming);
+    const coming = this.cb.say(BEAR.coming);
     await this.wait(0.8);
     this.world.attach(f);
     this.cb.sfx('hop');
@@ -1229,6 +1229,8 @@ export class Journey {
     f.position.set(0, top, 0);
     f.rotation.set(0, 0.6, 0);
     this.cb.sfx('pop');
+    // "我们来救你啦！"说完再说下一句，不然会被截掉
+    await coming;
     this.cb.say(RESCUED);
   }
 

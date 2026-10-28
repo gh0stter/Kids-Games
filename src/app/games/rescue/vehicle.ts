@@ -154,7 +154,7 @@ export function stats(v: Vehicle, raised = false): Stats {
     buoyancy += p.buoyancy ?? 0;
     lift += p.lift ?? 0;
     anchor += p.anchor ?? 0;
-    // 举高的吊臂很轻，重心按没举的高度算
+    // 吊臂举起来，重心跟着变高：地震里更容易晃倒（第 10 关要用阻尼球或者宽底盘）
     moment += p.weight * (raised && p.raisedHeight ? p.raisedHeight / 2 : p.height / 2);
     lateral += p.weight * b.z;
     colTop.set(b.x, Math.max(colTop.get(b.x) ?? 0, h));

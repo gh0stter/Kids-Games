@@ -1,8 +1,17 @@
 import * as THREE from 'three';
 import { LIP, WaveMesh, WaveSample } from '../tsunami/wave-mesh';
-import { buildCharacter, buildVehicle, Character, disposeGeometry, partTop } from './models';
+import { buildCharacter, buildVehicle, disposeGeometry, partTop } from './models';
 import { PARTS } from './parts';
-import { BEAR, CAUSES, DISASTER_LINES, Mission, Place, RESCUED, TOO_HEAVY } from './rescue-data';
+import {
+  BEAR,
+  CAUSES,
+  DISASTER_LINES,
+  Friend,
+  Mission,
+  Place,
+  RESCUED,
+  TOO_HEAVY,
+} from './rescue-data';
 import { Outcome } from './sim';
 import { Block, Vehicle } from './vehicle';
 
@@ -174,6 +183,8 @@ export class Journey {
     this.mats.forEach((m) => m.dispose());
     this.pitMat.dispose();
     this.renderer.dispose();
+    // 马上把 WebGL 上下文还回去：浏览器同时能开的有限，进出几次就会把别的画面挤掉
+    this.renderer.forceContextLoss();
   }
 
   // ---------------------------------------------------------------- 搭场景
@@ -208,7 +219,7 @@ export class Journey {
     this.crackFill = null;
     this.wide = this.wideGoal = 0;
     this.buildTerrain(m);
-    this.buildPlace(m.place);
+    this.buildPlace(m.place, m.friend);
 
     disposeGeometry(this.body);
     this.tilt.remove(this.body);
@@ -355,8 +366,8 @@ export class Journey {
     return g;
   }
 
-  /** 朋友待的地方：返回朋友站的位置 */
-  private buildPlace(place: Place): void {
+  /** 朋友待的地方，朋友站在那里招手 */
+  private buildPlace(place: Place, friend: Friend): void {
     const x = this.lay.friendX;
     const m = (color: string): THREE.Material =>
       this.mat(color, { roughness: 0.8, flatShading: true });
@@ -367,16 +378,7 @@ export class Journey {
       });
       this.world.add(obj);
     };
-    const kind = {
-      field: 'koala',
-      island: 'chick',
-      tree: 'koala',
-      barn: 'chick',
-      iceberg: 'polar',
-      raft: 'chick',
-      roof: 'polar',
-    }[place];
-    this.friend = buildCharacter(kind as Character);
+    this.friend = buildCharacter(friend);
     this.friend.scale.setScalar(0.6);
     let pos = new THREE.Vector3(x, 0, 0);
     switch (place) {
@@ -733,7 +735,7 @@ export class Journey {
       if (!fail) this.tilt.rotation.x = Math.sin(this.time * 20) * 0.04 * Math.min(1, o.ratio) * p;
     });
     if (fail) {
-      this.cb.say(CAUSES.sucked.what);
+      this.cb.say(BEAR.wow);
       this.cb.sfx('whoosh');
       const start = this.carrier.position.clone();
       await this.tween(2.4, (p) => {
@@ -746,7 +748,6 @@ export class Journey {
         this.carrier.rotation.y = a;
         funnel.position.x = cx - p * 2;
       });
-      this.cb.say(BEAR.wow);
       // 撑着小伞，轻轻地落下来
       const umbrella = this.umbrella(this.vehicle!);
       this.carrier.add(umbrella);
@@ -950,6 +951,8 @@ export class Journey {
       return 0;
     };
     void this.tugTo(o.ratio, 3);
+    // 现在的关卡里海啸都在水上，浮着的一定过得去；在地上才可能被冲走
+    const washed = o.cause === 'washedAway';
     const baseY = this.carrier.position.y;
     await this.tween(7, (p, dt) => {
       front = p * 34;
@@ -960,6 +963,11 @@ export class Journey {
       }
       wave.update(samples, toWorld, -2, WATER_Y, len, this.time);
       if (o.mode !== 'fly') {
+        // 在地上挡不住的：被浪推着往后冲，打着转
+        if (washed && surface(this.carrier.position.x) > 0.3) {
+          this.carrier.position.x -= dt * 7;
+          this.carrier.rotation.y += dt * 3;
+        }
         const x = this.carrier.position.x;
         const lift = surface(x);
         this.carrier.position.y = baseY + lift;
@@ -988,6 +996,13 @@ export class Journey {
     wave.mesh.geometry.dispose();
     this.wideGoal = 0;
     this.cb.tug(null);
+    if (washed) {
+      this.cb.say(BEAR.wow);
+      await this.wait(1.2);
+      this.cb.say(CAUSES.washedAway.what);
+      await this.wait(1.8);
+      return false;
+    }
     return true;
   }
 
@@ -1219,7 +1234,9 @@ export class Journey {
   private async finish(front: number): Promise<void> {
     await this.wait(0.8);
     if (this.flying) {
-      await this.tween(1, (p) => (this.carrier.position.y = (FLY_Y + 0.5) * (1 - p) + FLY_Y * p));
+      // 救高处朋友时飞高了一点，落回平常的高度
+      const y0 = this.carrier.position.y;
+      await this.tween(1, (p) => (this.carrier.position.y = y0 + (FLY_Y - y0) * ease(p)));
     }
     // 大家一起蹦一下
     void this.hop(this.bear, 0.35, 0.4);

@@ -125,7 +125,11 @@ export class Preview {
     this.canvas.removeEventListener('pointermove', this.onMove);
     this.canvas.removeEventListener('pointerup', this.onUp);
     this.canvas.removeEventListener('pointercancel', this.onUp);
+    if (this.vehicle) disposeGeometry(this.vehicle);
+    this.table?.geometry.dispose();
     this.renderer.dispose();
+    // 每次进拼装页都会新建一个转台，旧的 WebGL 上下文要马上还回去
+    this.renderer.forceContextLoss();
   }
 
   /** 换一台载具；和上一台比，新多出来的块弹一下。bad 里的块（网格 [row, col]）闪红 */

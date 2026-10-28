@@ -225,7 +225,10 @@ export class Rescue {
     this.sound.tap();
     this.speech.say(FREE_MODE);
     this.rollFree();
-    this.later(900, () => this.showBrief());
+    // 等「自由模式」说完；这期间孩子要是点了别的，就不跳了
+    this.later(900, () => {
+      if (this.screen() === 'map') this.showBrief();
+    });
   }
 
   /** 🎲：随机抽地形、灾害和朋友 */
@@ -552,7 +555,11 @@ export class Rescue {
   }
 
   private later(ms: number, fn: () => void): void {
-    this.lines.push(setTimeout(fn, ms));
+    const id = setTimeout(() => {
+      this.lines = this.lines.filter((x) => x !== id);
+      fn();
+    }, ms);
+    this.lines.push(id);
   }
 
   // ---------------------------------------------------------------- 存档

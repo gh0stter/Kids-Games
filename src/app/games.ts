@@ -64,7 +64,7 @@ export const GAMES: GameInfo[] = [
     path: 'rescue',
     title: '拼拼救援队',
     emoji: '🛟',
-    color: 'var(--orange)',
+    color: 'var(--pink)',
     intro: '拼一台救援车，出发去救好朋友！',
     load: () => import('./games/rescue/rescue').then((m) => m.Rescue),
   },

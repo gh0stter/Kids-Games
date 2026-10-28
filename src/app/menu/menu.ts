@@ -82,9 +82,10 @@ import { GREETINGS } from './menu-data';
       z-index: 2;
       flex: 1;
       width: 100%;
-      max-width: 900px;
+      /* 横屏一排 4 个：7 个游戏正好两排 */
+      max-width: 1100px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 28px 32px;
       padding: 32px 32px 150px;
       align-content: center;
@@ -109,14 +110,14 @@ import { GREETINGS } from './menu-data';
 
     .icon {
       position: relative;
-      width: 180px;
-      height: 180px;
+      width: 170px;
+      height: 170px;
       border-radius: 34%;
       display: grid;
       place-items: center;
       background: color-mix(in srgb, var(--c) 72%, white);
       box-shadow: var(--bevel), var(--shadow);
-      font-size: 100px;
+      font-size: 94px;
       animation: wobble 3.2s ease-in-out infinite;
 
       /* 高光 */
@@ -133,7 +134,7 @@ import { GREETINGS } from './menu-data';
       }
     }
 
-    @for $i from 2 through 6 {
+    @for $i from 2 through 8 {
       .app:nth-child(#{$i}) .icon {
         animation-delay: -#{($i - 1) * 0.6}s;
       }

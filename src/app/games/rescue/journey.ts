@@ -588,13 +588,13 @@ export class Journey {
       await this.leaveWater();
     }
     // 水上的朋友在木筏、冰山、小岛上，停在它们前面一点
-    const stop =
-      m.place === 'iceberg' || m.place === 'raft' || (m.place === 'island' && m.terrain === 'ocean')
-        ? 0.3
-        : -0.7;
-    await this.moveFront(this.lay.friendX + stop);
+    const ahead =
+      m.place === 'iceberg' ||
+      m.place === 'raft' ||
+      (m.place === 'island' && m.terrain === 'ocean');
+    await this.moveFront(this.lay.friendX + (ahead ? 0.3 : -0.7));
     await this.pickUp();
-    return this.finish(front());
+    return this.finish(front(), ahead);
   }
 
   /** 灾害：返回载具有没有扛住 */
@@ -1231,7 +1231,8 @@ export class Journey {
     this.cb.say(RESCUED);
   }
 
-  private async finish(front: number): Promise<void> {
+  /** @param blocked 前面挡着冰山、木筏或小岛：往后退开，不然会开进去 */
+  private async finish(front: number, blocked = false): Promise<void> {
     await this.wait(0.8);
     if (this.flying) {
       // 救高处朋友时飞高了一点，落回平常的高度
@@ -1241,7 +1242,7 @@ export class Journey {
     // 大家一起蹦一下
     void this.hop(this.bear, 0.35, 0.4);
     void this.hop(this.friend!, 0.35, 0.4);
-    await this.moveFront(front + 2.5, 2);
+    await this.moveFront(blocked ? front - 2.5 : front + 2.5, 2);
   }
 
   /** 沿抛物线跳到目标（世界坐标） */

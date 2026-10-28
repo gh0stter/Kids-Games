@@ -113,8 +113,8 @@ function hullGeo(shape: 'mid' | 'bow' | 'stern'): THREE.BufferGeometry {
 function hullBase(g: THREE.Group, shape: 'mid' | 'bow' | 'stern' = 'mid'): void {
   const hull = new THREE.Mesh(hullGeo(shape), mat(GREY));
   g.add(hull);
-  // 黄色的船舷
-  if (shape !== 'bow') g.add(box(1, 0.08, 1.02, YELLOW, 0, DECK - 0.08));
+  // 黄色的船舷：顶面比灰色船体高一点点。两个面正好重叠在 DECK 时，显卡分不出谁在前面，会一直闪
+  if (shape !== 'bow') g.add(box(1, 0.08, 1.02, YELLOW, 0, DECK - 0.07));
 }
 
 function skidBase(g: THREE.Group): void {

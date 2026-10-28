@@ -511,6 +511,13 @@ export class Rescue {
     } else this.toMap();
   }
 
+  /** 自由模式的结果卡：再抽一个随机事件，回到任务卡（拼好的车留着） */
+  protected nextFree(): void {
+    this.result.set(null);
+    this.rollFree();
+    this.showBrief();
+  }
+
   protected again(): void {
     this.sound.good();
     this.result.set(null);

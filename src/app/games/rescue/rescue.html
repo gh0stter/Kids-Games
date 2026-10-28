@@ -275,6 +275,17 @@
             @if (r.outcome.ok && mission().id && mission().id < missions.length) {
               <button class="round next big" aria-label="下一关" (click)="next()">▶</button>
             }
+            <!-- 自由模式：再抽一个新的随机事件 -->
+            @if (!mission().id) {
+              <button
+                class="round next"
+                [class.big]="r.outcome.ok"
+                aria-label="下一个任务"
+                (click)="nextFree()"
+              >
+                🎲
+              </button>
+            }
           </div>
         </div>
       }

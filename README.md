@@ -38,6 +38,13 @@ line the games say is spoken in a natural Chinese neural voice. Kids don't need 
     <td><b>🖍️ Drawing (画画)</b><br>Free drawing with nine colors, a rainbow pen, an eraser, three brush sizes, and multi-touch.</td>
     <td><b>🌊 Tsunami! (海啸来啦)</b><br>A 3D sandbox: build a town of magnetic-tile towers, then see whether it survives a tsunami. Details below.</td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/rescue-tornado.png" alt="Rescue Squad"></td>
+    <td><img src="docs/screenshots/rescue-build.png" alt="Rescue Squad: building"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><b>🛟 Rescue Squad (拼拼救援队)</b><br>Snap magnetic parts together into a car, boat or helicopter that can ride out a tsunami, typhoon, tornado or earthquake, and go rescue a stranded friend. Details below.</td>
+  </tr>
 </table>
 
 ## 🌊 Tsunami! — the 3D sandbox
@@ -88,6 +95,71 @@ The wave rolls across the island row by row:
   </tr>
 </table>
 
+## 🛟 Rescue Squad — build a vehicle that survives the disaster
+
+This one is based on a set of magnetic transforming construction trucks my kid has: the heads, middle sections and tails all come apart and snap together in any order.
+In the game, Captain Yellow Bear (modeled on the kid's favorite plush) builds a rescue vehicle out of those parts, crosses land or sea, rides out a disaster,
+and brings back a stranded koala, chick or polar bear.
+
+Like Tsunami!, every disaster maps to a real physical idea, and no vehicle wins everything:
+heavy things don't blow over, but they also sink and can't fly.
+
+**Build**
+
+- A 6×4 grid and 18 parts: 5 heads, 9 middle sections and 4 tails. Every part brings its own bottom: wheels, a road roller, a hull, or helicopter skids.
+- Tap to place a part, or drag to lay down a row. You need a head and a tail, everything has to be connected, and nothing can go in front of a head or behind a tail.
+- Tap a placed dump-truck bed again to load it with rocks and make it heavier.
+- The turntable on the right shows the vehicle in 3D and says what it is: car, crane, boat, amphibious truck, flying car…
+- The garage remembers the last 6 vehicles you set off in.
+
+**Go!**
+
+| Disaster | The idea | Ways to build for it |
+| --- | --- | --- |
+| 🌊 Tsunami | Float, and you ride over the wave | A hull, or fly over with rotors |
+| 🌀 Typhoon | Heavy and wide doesn't tip; a raised crane boom or a helicopter catches the wind | A wide base with rollers or a mixer; a wide boat |
+| 🌪️ Tornado | Hold on to the ground | Dig the excavator bucket in, hook the crane to the ground, or just be heavy |
+| 🫨 Earthquake | Long enough to span the crack; low, wide or damped doesn't shake over | A long vehicle, a wide base, the damper ball |
+
+Some rules hold everywhere: wheels on land; a hull on water, with enough buoyancy for the weight (too heavy and it sinks);
+rotors only lift off if their lift beats the weight; and a friend up a tree or on a roof needs a crane to reach.
+
+During the disaster a tug-of-war bar shows the disaster's strength on the left and the bear on the right. Whichever way the knot moves is winning.
+
+**10 missions plus free play**, from "drive across the meadow to pick up the koala" to "rescue the polar bear from a roof during a big earthquake".
+Free play rolls a random terrain, disaster and friend.
+
+**Failing is fun too.** Vehicles tip over, get sucked into the tornado (and float down under a little umbrella), or sink (and the bear climbs into a life ring). Nothing is scary.
+When the same thing goes wrong again, the hints get stronger:
+
+1. The first time, it just says what happened: "The wind blew the truck over!"
+2. The second time, it asks an everyday question: "Can the wind move a leaf? What about a big rock?"
+3. The third time, the result card shows 💡 with the parts to try, and those parts bounce and glow in the tray.
+
+Each rescue earns a sticker for the idea it used (10 in all: wheels, hull, lift, heavy, low, grip, long, wide, balance, damper), and rescued friends show up on the friends board on the map.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/rescue-map.png" alt="Mission map"></td>
+    <td width="50%"><img src="docs/screenshots/rescue-typhoon.png" alt="Typhoon"></td>
+  </tr>
+  <tr>
+    <td>The mission map, the friends board and the sticker book.</td>
+    <td>Lifting the koala out of a tree in a typhoon. Road rollers on both sides make the crane wide and heavy enough not to tip.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/rescue-quake.png" alt="Earthquake"></td>
+    <td><img src="docs/screenshots/rescue-tsunami.png" alt="Tsunami"></td>
+  </tr>
+  <tr>
+    <td>Rescuing the polar bear from a roof in a big earthquake. The damper ball soaks up the shaking and the boom telescopes up to the roof.</td>
+    <td>A two-wide boat riding up the face of the tsunami.</td>
+  </tr>
+</table>
+
+Part stats live in `src/app/games/rescue/parts.ts` and the rules in `sim.ts`. After changing them, run `npm run test:rescue`:
+it checks that every mission is still solvable and that the typical mistakes still fail. The full design is in [docs/rescue-design.md](docs/rescue-design.md) (in Chinese).
+
 ## For parents
 
 Hold the ⚙️ in the top-right corner of the menu for 1.5 seconds, then answer a multiplication question.
@@ -113,11 +185,13 @@ Little kids can't open the settings by accident.
 ## Tech
 
 - **Angular 22** with standalone components and signals. Each game is lazy-loaded.
-- **three.js** for the tsunami game: an orthographic isometric camera, instanced meshes for the tiles, a hand-rolled curling wave mesh, and simple ballistic and buoyancy "physics".
+- **three.js**:
+  - Tsunami!: an orthographic isometric camera, instanced meshes for the tiles, a hand-rolled curling wave mesh, and simple ballistic and buoyancy "physics".
+  - Rescue Squad: a perspective camera that follows the vehicle. Every part and plush is built from primitives in code, and the tray icons are rendered with three.js at startup. It shares the wave mesh with Tsunami!.
 - **PWA** with `@angular/service-worker`. Everything is precached, including voice clips and the font, so it works offline after the first visit.
-- **Voice**: about 390 lines pre-rendered as MP3 with Microsoft's neural voices through [edge-tts](https://github.com/rany2/edge-tts). Xiaoxiao reads normal lines and the livelier Xiaoyi reads praise. Clips play through Web Audio, so iOS doesn't block delayed playback. If a clip is missing, the system TTS is used instead.
+- **Voice**: about 490 lines pre-rendered as MP3 with Microsoft's neural voices through [edge-tts](https://github.com/rany2/edge-tts). Xiaoxiao reads normal lines, the livelier Xiaoyi reads praise, and Captain Yellow Bear in Rescue Squad uses the child voice Yunxia. Clips play through Web Audio, so iOS doesn't block delayed playback. If a clip is missing, the system TTS is used instead.
 - **Sound effects** are synthesized with Web Audio, with no audio files.
-- **Font**: ChillRound (寒蝉圆黑体), subset to the roughly 800 characters the app uses (about 130 KB) and renamed as the OFL requires.
+- **Font**: ChillRound (寒蝉圆黑体), subset to the roughly 1,000 characters the app uses (about 160 KB) and renamed as the OFL requires.
 
 ## Getting started
 
@@ -127,6 +201,7 @@ Requires Node.js 22+. Python 3 is only needed to regenerate voice clips or the f
 npm install
 npm start                 # dev server at http://localhost:4200
 npm run build             # production build in dist/kids-games/browser
+npm run test:rescue       # rule tests for Rescue Squad
 ```
 
 The voice clips and font subset are committed, so you only need these when you change text:
@@ -160,6 +235,8 @@ src/app/
   games/<name>/       one folder per game; <name>-data.ts holds the data and spoken lines
   games/tsunami/      world.ts (scene, input, wave, quake), camera-rig.ts, wave-mesh.ts,
                       island.ts (random islands), models.ts (low-poly vehicles and bridges)
+  games/rescue/       parts.ts (part stats), vehicle.ts (assembly rules), sim.ts (outcomes),
+                      journey.ts (the trip and the disasters), preview.ts (turntable), models.ts
 public/voice/         pre-rendered MP3s
 public/fonts/         font subset
 scripts/              gen-voice.mts, subset-font.py, deploy.sh

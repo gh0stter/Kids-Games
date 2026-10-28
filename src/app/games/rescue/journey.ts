@@ -840,8 +840,16 @@ export class Journey {
     const r = Math.min(o.ratio, 1.2);
     void this.tugTo(m.crack && o.cause === 'fellInCrack' ? 0.3 : o.ratio, 2.8);
     const fill = this.crackFill;
-    await this.tween(2.8, (p) => {
+    await this.tween(2.8, (p, dt) => {
       this.shake = 1;
+      // 树一起摇，地上冒土
+      this.bend = Math.sin(this.time * 17) * 0.5;
+      if (Math.random() < dt * 14) {
+        const at = this.carrier.position
+          .clone()
+          .add(new THREE.Vector3(rand(-7, 7), 0, rand(-4, 3)));
+        this.dust(at.setY(0.05), 5);
+      }
       const amp = (o.mode === 'fly' ? 0 : r) * 0.22 * Math.min(1, p * 1.4);
       this.tilt.rotation.x = Math.abs(Math.sin(this.time * 13)) * amp;
       this.swingBall(this.tilt.rotation.x);
@@ -853,6 +861,7 @@ export class Journey {
       const from = this.tilt.rotation.x;
       await this.tween(0.7, (p) => (this.tilt.rotation.x = from + (Math.PI / 2 - from) * ease(p)));
       this.shake = 0;
+      this.bend = 0;
       this.cb.say(BEAR.wow);
       await this.wait(1.2);
       this.cb.say(CAUSES.shookOver.what);
@@ -866,6 +875,7 @@ export class Journey {
     });
     this.tilt.rotation.x = 0;
     this.shake = 0;
+    this.bend = 0;
     this.cb.tug(null);
     if (m.crack && o.mode !== 'fly') {
       const crackStart = this.lay.disasterX + 1.5;
@@ -901,7 +911,7 @@ export class Journey {
     this.cb.sfx('rumble');
     const cx = this.carrier.position.x;
     const startX = cx + 18;
-    const len = 1.6;
+    const len = 2.4;
     const height = 2.4;
     this.wideGoal = 0.6;
     const wave = new WaveMesh(25);
@@ -916,15 +926,16 @@ export class Journey {
       new THREE.Vector3(startX - s, y, w * 0.8);
     const surface = (x: number): number => {
       const u = (startX - x - front) / len;
-      if (u > 0 || u < -1.7) return 0;
-      // 浪背面和浪尖（和 wave-mesh.ts 的横截面差不多）
+      if (u > 0.7 || u < -1.7) return 0;
+      // 浮着的东西顺着浪头爬上去、骑在浪尖上，再从浪背面滑下来（浪背面和 wave-mesh.ts 的横截面差不多）
       const pts = [
         [-1.7, 0],
         [-1.2, 0.28],
         [-0.75, 0.66],
         [-0.4, 0.92],
         [-0.1, 1.04],
-        [0, 0.7],
+        [0.1, 1.06],
+        [0.7, 0],
       ];
       for (let i = 1; i < pts.length; i++) {
         if (u <= pts[i][0]) {
@@ -937,8 +948,8 @@ export class Journey {
     };
     void this.tugTo(o.ratio, 3);
     const baseY = this.carrier.position.y;
-    await this.tween(5.5, (p, dt) => {
-      front = p * 32;
+    await this.tween(7, (p, dt) => {
+      front = p * 34;
       for (const sm of samples) {
         sm.front = front;
         // 两头矮一点，看不到切口
@@ -946,10 +957,14 @@ export class Journey {
       }
       wave.update(samples, toWorld, -2, WATER_Y, len, this.time);
       if (o.mode !== 'fly') {
-        const lift = surface(this.carrier.position.x);
+        const x = this.carrier.position.x;
+        const lift = surface(x);
         this.carrier.position.y = baseY + lift;
-        this.tilt.rotation.z =
-          lift > 0.1 ? Math.sin(this.time * 5) * 0.12 * (o.stats.width === 1 ? 2 : 1) : 0;
+        // 爬浪的时候船头翘起来，下浪的时候低头；窄的船晃得厉害
+        const slope = surface(x + 0.5) - surface(x - 0.5);
+        const rock =
+          lift > 0.1 ? Math.sin(this.time * 5) * 0.06 * (o.stats.width === 1 ? 2 : 1) : 0;
+        this.tilt.rotation.z = THREE.MathUtils.clamp(Math.atan(slope) * 0.5, -0.45, 0.45) + rock;
       }
       // 浪头的水花
       if (Math.random() < dt * 20) {
@@ -1149,6 +1164,8 @@ export class Journey {
     await this.tween(1.1, (p) => {
       for (const b of booms) {
         b.rotation.z = from + (target - from) * ease(p);
+        // 举起来的时候吊臂一节一节伸长
+        b.scale.x = 1 + (b.rotation.z / 1.05) * 0.9;
         // 吊钩一直往下垂
         const hook = b.getObjectByName('hook');
         if (hook) hook.rotation.z = -b.rotation.z;
@@ -1330,11 +1347,12 @@ export class Journey {
     // 镜头跟着载具，从右前上方斜着看；竖屏时退远一点
     const goal = this.carrier.position.clone();
     goal.x += 1.5;
-    goal.y = Math.max(0.6, goal.y * 0.7 + 0.6) + this.wide * 1.5;
+    // 在浪上起伏时镜头不跟着上下，才看得出被浪托起来；飞高了、被卷上天才跟上去
+    goal.y = 0.6 + Math.max(0, goal.y - 1.5) * 0.8 + this.wide * 1.5;
     this.focus.lerp(goal, Math.min(1, dt * 3));
     const far = (1 + this.wide * 0.5) / Math.pow(Math.min(1, this.camera.aspect / 1.3), 0.6);
     const jitter = this.shake
-      ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(0.08)
+      ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(0.16)
       : new THREE.Vector3();
     this.camera.position
       .copy(this.focus)

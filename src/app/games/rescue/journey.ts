@@ -12,7 +12,7 @@ import {
   RESCUED,
   TOO_HEAVY,
 } from './rescue-data';
-import { Outcome } from './sim';
+import { Outcome, Power } from './sim';
 import { Block, Vehicle } from './vehicle';
 
 export type Sfx =
@@ -115,6 +115,8 @@ export class Journey {
   private floating = false;
   private flying = false;
   private shake = 0;
+  /** 这次灾害的强度（1–3）：画面上的风雨、漏斗、摇晃、浪高都跟着变 */
+  private power: Power = 2;
   private time = 0;
   private focus = new THREE.Vector3();
   private trees: THREE.Object3D[] = [];
@@ -600,6 +602,7 @@ export class Journey {
   /** 灾害：返回载具有没有扛住 */
   private async disaster(m: Mission, o: Outcome): Promise<boolean> {
     if (m.disaster === 'none') return true;
+    this.power = m.power;
     this.cb.say(DISASTER_LINES[m.disaster]);
     const fail = !!o.cause;
     switch (m.disaster) {
@@ -614,6 +617,11 @@ export class Journey {
     }
   }
 
+  /** 按强度 1、2、3 取对应的值 */
+  private lv(weak: number, mid: number, strong: number): number {
+    return [weak, mid, strong][this.power - 1];
+  }
+
   /** 拔河条从 0 慢慢拉到最后的比值，中间一抖一抖 */
   private tugTo(ratio: number, dur: number): Promise<void> {
     const target = Math.min(ratio, 1.6);
@@ -625,9 +633,12 @@ export class Journey {
   private async typhoon(o: Outcome, fail: boolean): Promise<boolean> {
     this.cb.sfx('wind');
     const storm = this.storm();
+    // 越强天越暗、树弯得越厉害
+    const gloom = this.lv(0.7, 0.85, 1);
+    const bend = this.lv(0.6, 0.85, 1.15);
     await this.tween(1.2, (p) => {
-      this.gloom = p;
-      this.bend = p;
+      this.gloom = p * gloom;
+      this.bend = p * bend;
     });
     const r = Math.min(o.ratio, 1.2);
     const sway = (amp: number): void => {
@@ -666,8 +677,8 @@ export class Journey {
       this.cb.tug(null);
       // 雨慢慢停了
       await this.tween(1.8, (p) => {
-        this.gloom = 1 - p;
-        this.bend = 1 - p;
+        this.gloom = (1 - p) * gloom;
+        this.bend = (1 - p) * bend;
       });
       this.loops.delete(storm);
       return false;
@@ -676,8 +687,8 @@ export class Journey {
     this.tilt.rotation.x = 0;
     this.cb.tug(null);
     await this.tween(1, (p) => {
-      this.gloom = 1 - p;
-      this.bend = 1 - p;
+      this.gloom = (1 - p) * gloom;
+      this.bend = (1 - p) * bend;
     });
     this.loops.delete(storm);
     return true;
@@ -685,23 +696,25 @@ export class Journey {
 
   /** 下雨刮风：返回每帧的效果，结束时删掉 */
   private storm(): (dt: number) => void {
+    // 越强雨越密、斜得越厉害，风也越多
+    const f = this.lv(0.6, 1, 1.6);
     const fn = (dt: number): void => {
       if (this.gloom < 0.2) return;
-      const n = Math.round(60 * dt * 10 * this.gloom);
+      const n = Math.round(60 * dt * 10 * this.gloom * f);
       for (let i = 0; i < n; i++) {
         const p = this.focus
           .clone()
           .add(new THREE.Vector3(rand(-14, 14), rand(6, 10), rand(-10, 4)));
         this.spawn(
           p,
-          new THREE.Vector3(1, -16, 6),
+          new THREE.Vector3(f, -16, 6 * f),
           0.8,
           new THREE.Vector3(0.03, 0.5, 0.03),
           '#d8eef8',
           0,
         );
       }
-      if (Math.random() < dt * 8) {
+      if (Math.random() < dt * 8 * f) {
         // 一道一道的风
         const p = this.focus.clone().add(new THREE.Vector3(rand(-10, 10), rand(0.5, 4), -8));
         this.spawn(
@@ -721,11 +734,14 @@ export class Journey {
   private async tornado(o: Outcome, fail: boolean): Promise<boolean> {
     this.cb.sfx('wind');
     const funnel = this.funnel();
+    // 越强漏斗越大、天越暗
+    funnel.scale.setScalar(this.lv(0.75, 1, 1.3));
+    const gloom = this.lv(0.45, 0.6, 0.75);
     const cx = this.carrier.position.x;
     this.wideGoal = 1;
     funnel.position.set(cx + 12, 0, -1);
     this.world.add(funnel);
-    await this.tween(1, (p) => (this.gloom = p * 0.6));
+    await this.tween(1, (p) => (this.gloom = p * gloom));
     void this.tugTo(o.ratio, 3.2);
     // 抓地：铲斗插进地里，吊钩垂到地上
     if (!o.onWater && o.stats.anchor > 0 && o.mode !== 'fly') void this.anchor(true);
@@ -758,7 +774,7 @@ export class Journey {
         this.carrier.position.lerpVectors(top, end, ease(p));
         this.carrier.position.x += Math.sin(p * 9) * 0.4;
         this.carrier.rotation.y = 10 + p * 2;
-        this.gloom = 0.6 * (1 - p);
+        this.gloom = gloom * (1 - p);
       });
       this.cb.tug(null);
       this.world.remove(funnel);
@@ -771,7 +787,7 @@ export class Journey {
     await this.tween(2.4, (p) => {
       funnel.position.x = cx - p * 14;
       this.tilt.rotation.x = Math.sin(this.time * 20) * 0.04 * (1 - p);
-      this.gloom = 0.6 * (1 - p);
+      this.gloom = gloom * (1 - p);
     });
     this.tilt.rotation.x = 0;
     this.cb.tug(null);
@@ -803,13 +819,13 @@ export class Journey {
         r.rotation.y += dt * (5 - i * 0.2);
         r.position.x = Math.sin(this.time * 3 + i * 0.5) * 0.15 * i;
       });
-      if (g.parent && Math.random() < dt * 30) {
-        // 被卷起来的叶子和土
+      const k = g.scale.x;
+      if (g.parent && Math.random() < dt * 30 * k) {
+        // 被卷起来的叶子和土（漏斗越大卷得越多、越高）
         const a = rand(0, Math.PI * 2);
-        const h = rand(0, 7);
-        const p = g.position
-          .clone()
-          .add(new THREE.Vector3(Math.cos(a) * (0.6 + h * 0.3), h, Math.sin(a) * (0.6 + h * 0.3)));
+        const h = rand(0, 7) * k;
+        const rr = (0.6 + h * 0.3) * k;
+        const p = g.position.clone().add(new THREE.Vector3(Math.cos(a) * rr, h, Math.sin(a) * rr));
         const v = new THREE.Vector3(-Math.sin(a) * 6, 2, Math.cos(a) * 6);
         this.spawn(
           p,
@@ -844,11 +860,13 @@ export class Journey {
     const r = Math.min(o.ratio, 1.2);
     void this.tugTo(m.crack && o.cause === 'fellInCrack' ? 0.3 : o.ratio, 2.8);
     const fill = this.crackFill;
+    // 越强镜头晃得越厉害、树摇得越凶、冒的土越多
+    const quake = this.lv(0.6, 1, 1.5);
     await this.tween(2.8, (p, dt) => {
-      this.shake = 1;
+      this.shake = quake;
       // 树一起摇，地上冒土
-      this.bend = Math.sin(this.time * 17) * 0.5;
-      if (Math.random() < dt * 14) {
+      this.bend = Math.sin(this.time * 17) * 0.5 * quake;
+      if (Math.random() < dt * 14 * quake) {
         const at = this.carrier.position
           .clone()
           .add(new THREE.Vector3(rand(-7, 7), 0, rand(-4, 3)));
@@ -915,8 +933,9 @@ export class Journey {
     this.cb.sfx('rumble');
     const cx = this.carrier.position.x;
     const startX = cx + 18;
-    const len = 2.4;
-    const height = 2.4;
+    // 浪高跟着强度：1 是矮浪，3 是明显高出一截的大浪
+    const height = this.lv(1.6, 2.4, 3.4);
+    const len = height;
     this.wideGoal = 0.6;
     const wave = new WaveMesh(25);
     this.world.add(wave.mesh);
@@ -1379,7 +1398,7 @@ export class Journey {
     this.focus.lerp(goal, Math.min(1, dt * 3));
     const far = (1 + this.wide * 0.5) / Math.pow(Math.min(1, this.camera.aspect / 1.3), 0.6);
     const jitter = this.shake
-      ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(0.16)
+      ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(0.16 * this.shake)
       : new THREE.Vector3();
     this.camera.position
       .copy(this.focus)

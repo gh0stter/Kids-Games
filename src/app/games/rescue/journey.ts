@@ -115,6 +115,8 @@ export class Journey {
   /** 镜头拉远多少（0–1）：龙卷风、海啸这种大场面要看全 */
   private wide = 0;
   private wideGoal = 0;
+  private readonly mats = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly pitMat = new THREE.MeshBasicMaterial({ color: '#2a1a12' });
   /** 测试脚本用：动画加速 */
   timeScale = 1;
   /** 被地图、拼装这些整页画面盖住的时候不用画 */
@@ -169,10 +171,26 @@ export class Journey {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
     disposeGeometry(this.scene);
+    this.mats.forEach((m) => m.dispose());
+    this.pitMat.dispose();
     this.renderer.dispose();
   }
 
   // ---------------------------------------------------------------- 搭场景
+
+  /** 同样的颜色和参数共用一个材质：每次出发都重搭一遍场景，材质不用每次新建 */
+  private mat(
+    color: string,
+    extra: THREE.MeshStandardMaterialParameters = {},
+  ): THREE.MeshStandardMaterial {
+    const key = color + JSON.stringify(extra);
+    let m = this.mats.get(key);
+    if (!m) {
+      m = new THREE.MeshStandardMaterial({ color, ...extra });
+      this.mats.set(key, m);
+    }
+    return m;
+  }
 
   /** 摆好场景和载具，停在起点 */
   setup(v: Vehicle, m: Mission): void {
@@ -200,6 +218,11 @@ export class Journey {
     this.tilt.position.set(0, 0, v.width / 2);
     this.body.position.set(0, 0, -v.width / 2);
     this.tilt.rotation.set(0, 0, 0);
+    // 上一次挂上去的东西（龙卷风里撑的小伞）拿掉
+    for (const extra of this.carrier.children.filter((c) => c !== this.tilt)) {
+      this.carrier.remove(extra);
+      disposeGeometry(extra);
+    }
     this.carrier.rotation.set(0, 0, 0);
     this.carrier.scale.setScalar(1);
     this.seatBear();
@@ -213,17 +236,9 @@ export class Journey {
   }
 
   private buildTerrain(m: Mission): void {
-    const grass = new THREE.MeshStandardMaterial({
-      color: '#8fd06c',
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const dirt = new THREE.MeshStandardMaterial({
-      color: '#a8754a',
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const path = new THREE.MeshStandardMaterial({ color: '#e3cf98', roughness: 1 });
+    const grass = this.mat('#8fd06c', { roughness: 0.9, flatShading: true });
+    const dirt = this.mat('#a8754a', { roughness: 0.9, flatShading: true });
+    const path = this.mat('#e3cf98', { roughness: 1 });
     const crack = m.disaster === 'quake' && m.crack ? m.crack : 0;
     const crackStart = this.lay.disasterX + 1.5;
     for (const [a, b] of this.lay.land) {
@@ -270,22 +285,14 @@ export class Journey {
       this.world.add(fill);
       this.crackFill = fill;
       // 裂开以后里面黑黑的（比水面高一点，不然会看到下面的海）
-      const pit = new THREE.Mesh(
-        new THREE.BoxGeometry(crack, 2.9, 16),
-        new THREE.MeshBasicMaterial({ color: '#2a1a12' }),
-      );
+      const pit = new THREE.Mesh(new THREE.BoxGeometry(crack, 2.9, 16), this.pitMat);
       pit.position.set(crackStart + crack / 2, -1.57, -2);
       this.world.add(pit);
     }
     // 水：海洋、海边都有；陆地关卡远处也看得到一点海
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(400, 400),
-      new THREE.MeshStandardMaterial({
-        color: '#3fb0c2',
-        roughness: 0.25,
-        transparent: true,
-        opacity: 0.9,
-      }),
+      this.mat('#3fb0c2', { roughness: 0.25, transparent: true, opacity: 0.9 }),
     );
     water.rotation.x = -Math.PI / 2;
     water.position.y = WATER_Y;
@@ -311,7 +318,7 @@ export class Journey {
     for (let i = 0; i < 6; i++) {
       const hill = new THREE.Mesh(
         new THREE.SphereGeometry(rand(4, 6), 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: '#9ccf8a', roughness: 1, flatShading: true }),
+        this.mat('#9ccf8a', { roughness: 1, flatShading: true }),
       );
       hill.position.set(-16 + i * 11 + rand(-3, 3), WATER_Y, -34);
       hill.scale.y = 0.45;
@@ -323,12 +330,12 @@ export class Journey {
     const g = new THREE.Group();
     const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.12, 0.16, 1, 8),
-      new THREE.MeshStandardMaterial({ color: '#8b5a34', flatShading: true }),
+      this.mat('#8b5a34', { flatShading: true }),
     );
     trunk.position.y = 0.5;
     const leaves = new THREE.Mesh(
       new THREE.SphereGeometry(0.7, 10, 8),
-      new THREE.MeshStandardMaterial({ color: '#5fb86a', flatShading: true }),
+      this.mat('#5fb86a', { flatShading: true }),
     );
     leaves.position.y = 1.4;
     g.add(trunk, leaves);
@@ -339,7 +346,7 @@ export class Journey {
 
   private cloud(): THREE.Group {
     const g = new THREE.Group();
-    const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true });
+    const m = this.mat('#ffffff', { roughness: 1, flatShading: true });
     for (let i = 0; i < 4; i++) {
       const puff = new THREE.Mesh(new THREE.SphereGeometry(rand(0.9, 1.4), 10, 8), m);
       puff.position.set(i * 1.1 - 1.6, rand(-0.2, 0.3), rand(-0.3, 0.3));
@@ -352,7 +359,7 @@ export class Journey {
   private buildPlace(place: Place): void {
     const x = this.lay.friendX;
     const m = (color: string): THREE.Material =>
-      new THREE.MeshStandardMaterial({ color, roughness: 0.8, flatShading: true });
+      this.mat(color, { roughness: 0.8, flatShading: true });
     const add = (obj: THREE.Object3D): void => {
       obj.traverse((o) => {
         o.castShadow = true;
@@ -775,8 +782,7 @@ export class Journey {
 
   private funnel(): THREE.Group {
     const g = new THREE.Group();
-    const m = new THREE.MeshStandardMaterial({
-      color: '#8a9298',
+    const m = this.mat('#8a9298', {
       transparent: true,
       opacity: 0.55,
       side: THREE.DoubleSide,
@@ -822,17 +828,10 @@ export class Journey {
     const r = Math.max(v.length, v.width) * 0.6 + 0.4;
     const canopy = new THREE.Mesh(
       new THREE.ConeGeometry(r, r * 0.5, 12, 1, true),
-      new THREE.MeshStandardMaterial({
-        color: '#f47c7c',
-        side: THREE.DoubleSide,
-        flatShading: true,
-      }),
+      this.mat('#f47c7c', { side: THREE.DoubleSide, flatShading: true }),
     );
     canopy.position.y = 2.6;
-    const stick = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6),
-      new THREE.MeshStandardMaterial({ color: '#555' }),
-    );
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6), this.mat('#555'));
     stick.position.y = 1.7;
     g.add(canopy, stick);
     return g;
@@ -1110,7 +1109,7 @@ export class Journey {
     this.loops.delete(bubbles);
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.45, 0.16, 8, 16),
-      new THREE.MeshStandardMaterial({ color: '#ff6b5a', flatShading: true }),
+      this.mat('#ff6b5a', { flatShading: true }),
     );
     ring.rotation.x = Math.PI / 2;
     const bearPos = new THREE.Vector3();

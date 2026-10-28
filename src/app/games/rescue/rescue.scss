@@ -639,13 +639,7 @@ header {
 .tip-part {
   width: 72px;
   height: 72px;
-  animation: glow-pulse 0.9s ease-in-out infinite alternate;
-}
-
-@keyframes glow-pulse {
-  to {
-    transform: scale(1.12);
-  }
+  animation: bob 1.2s ease-in-out infinite;
 }
 
 .won-sticker {

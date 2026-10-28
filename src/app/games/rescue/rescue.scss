@@ -244,10 +244,30 @@ header {
   font-size: 92px;
 }
 
+.power-1 {
+  font-size: 66px;
+}
+
+.power-3 {
+  font-size: 120px;
+}
+
+.where {
+  position: relative;
+}
+
 .card-friend {
   width: 130px;
   height: 130px;
   animation: bob 1.6s ease-in-out infinite;
+}
+
+/* 朋友在哪：树上、屋顶上、冰山上…… */
+.place {
+  position: absolute;
+  right: -26px;
+  bottom: -6px;
+  font-size: 56px;
 }
 
 .plus {
@@ -431,8 +451,9 @@ header {
 }
 
 .part {
-  width: 68px;
-  height: 68px;
+  /* 竖屏时一排 11 个也要放得下 */
+  width: min(68px, calc((100vw - 120px) / 11));
+  height: min(68px, calc((100vw - 120px) / 11));
   padding: 2px;
   border-radius: 18px;
   background: var(--paper);
@@ -483,11 +504,19 @@ header {
   background: rgba(90, 60, 30, 0.2);
 }
 
+/* 提示：这几个零件试试看？一闪一闪地跳 */
 @keyframes glow {
-  to {
+  from {
     box-shadow:
-      0 0 0 6px #ffe14d,
-      0 0 26px 10px #ffd000;
+      0 0 0 5px #ffd000,
+      0 5px 0 rgba(90, 60, 30, 0.3);
+  }
+  to {
+    transform: translateY(-6px) scale(1.08);
+    background: #fff6b0;
+    box-shadow:
+      0 0 0 7px #ffd000,
+      0 0 28px 12px #fff07a;
   }
 }
 
@@ -566,6 +595,23 @@ header {
 
 .oops {
   font-size: 70px;
+}
+
+.tip {
+  margin-left: 14px;
+  font-size: 48px;
+}
+
+.tip-part {
+  width: 72px;
+  height: 72px;
+  animation: glow-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes glow-pulse {
+  to {
+    transform: scale(1.12);
+  }
 }
 
 .won-sticker {

@@ -80,13 +80,19 @@
         <div class="card-row">
           <span class="card-icon">{{ terrainEmoji[mission().terrain] }}</span>
           <span class="plus">＋</span>
-          <span class="card-icon">{{ disasterEmoji[mission().disaster] }}</span>
+          <!-- 灾害越强，图标越大 -->
+          <span class="card-icon" [class]="'power-' + mission().power">{{
+            disasterEmoji[mission().disaster]
+          }}</span>
           <span class="plus">→</span>
-          @if (thumbs()[mission().friend]; as src) {
-            <img class="card-friend" [src]="src" [alt]="friends[mission().friend].name" />
-          } @else {
-            <span class="card-icon">{{ friends[mission().friend].emoji }}</span>
-          }
+          <span class="where">
+            @if (thumbs()[mission().friend]; as src) {
+              <img class="card-friend" [src]="src" [alt]="friends[mission().friend].name" />
+            } @else {
+              <span class="card-icon">{{ friends[mission().friend].emoji }}</span>
+            }
+            <span class="place">{{ placeEmoji[mission().place] }}</span>
+          </span>
         </div>
         <div class="card-buttons">
           @if (!mission().id) {
@@ -106,6 +112,7 @@
             @if (thumbs()[mission().friend]; as src) {
               <img [src]="src" alt="" />
             }
+            {{ placeEmoji[mission().place] }}
           </span>
         </div>
 
@@ -226,6 +233,15 @@
               }
             } @else {
               <span class="oops">😵</span>
+              <!-- 第三次因为同一个原因失败：给个提示，试试这些零件 -->
+              @if (r.tries >= 3) {
+                <span class="tip">💡</span>
+                @for (kind of hintParts(r); track kind) {
+                  @if (thumbs()[kind]; as src) {
+                    <img class="tip-part" [src]="src" [alt]="parts[kind].name" />
+                  }
+                }
+              }
             }
             @if (r.sticker) {
               <span class="won-sticker">{{ stickers[r.sticker].emoji }}</span>

@@ -1,14 +1,7 @@
 import * as THREE from 'three';
 import { LIP, WaveMesh, WaveSample } from '../tsunami/wave-mesh';
-import {
-  buildCharacter,
-  buildVehicle,
-  Character,
-  disposeGeometry,
-  HEIGHT_SCALE,
-  partTop,
-} from './models';
-import { PARTS, PartKind } from './parts';
+import { buildCharacter, buildVehicle, Character, disposeGeometry, partTop } from './models';
+import { PARTS } from './parts';
 import { BEAR, CAUSES, DISASTER_LINES, Mission, Place, RESCUED, TOO_HEAVY } from './rescue-data';
 import { Outcome } from './sim';
 import { Block, Vehicle } from './vehicle';
@@ -211,8 +204,9 @@ export class Journey {
 
     this.floating = false;
     this.flying = false;
-    this.carrier.position.set(this.lay.land[0][1] > 0 ? -2 - v.length / 2 : 0, 0, 0);
-    if (m.terrain === 'ocean') this.carrier.position.x = 0.4 - v.length / 2;
+    // 海洋关从码头边上出发，其他从路的起点出发
+    const startFront = m.terrain === 'ocean' ? 0.4 : -2;
+    this.carrier.position.set(startFront - v.length / 2, 0, 0);
     this.focus.set(this.carrier.position.x + 3, 0.8, 0);
   }
 
@@ -426,12 +420,12 @@ export class Journey {
       case 'island': {
         if (this.lay.landing === null) {
           const island = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2, 0.8, 12), m('#8fd06c'));
-          island.position.set(x + 1.2, WATER_Y, -0.4);
+          island.position.set(x + 2.6, WATER_Y, -0.4);
           add(island);
           const palm = this.tree(0.8);
-          palm.position.set(x + 1.8, 0.1, -1.2);
+          palm.position.set(x + 3.2, 0.1, -1.2);
           add(palm);
-          pos = new THREE.Vector3(x + 0.4, 0.15, -0.2);
+          pos = new THREE.Vector3(x + 1.6, 0.15, -0.2);
         } else {
           pos = new THREE.Vector3(x, 0, 0);
         }
@@ -440,9 +434,9 @@ export class Journey {
       case 'iceberg': {
         const ice = new THREE.Mesh(new THREE.DodecahedronGeometry(1.3, 0), m('#e8f8ff'));
         ice.scale.set(1.2, 0.6, 1);
-        ice.position.set(x + 1.2, WATER_Y + 0.1, -0.6);
+        ice.position.set(x + 2.1, WATER_Y + 0.1, -0.6);
         add(ice);
-        pos = new THREE.Vector3(x + 1, WATER_Y + 0.75, -0.4);
+        pos = new THREE.Vector3(x + 1.9, WATER_Y + 0.75, -0.4);
         this.bob(ice, 0.05);
         break;
       }
@@ -454,10 +448,10 @@ export class Journey {
           log.position.set(i * 0.34 - 0.5, 0, 0);
           raft.add(log);
         }
-        raft.position.set(x + 1, WATER_Y + 0.05, 0);
+        raft.position.set(x + 1.6, WATER_Y + 0.05, 0);
         add(raft);
         this.bob(raft, 0.06);
-        pos = new THREE.Vector3(x + 1, WATER_Y + 0.2, 0);
+        pos = new THREE.Vector3(x + 1.6, WATER_Y + 0.2, 0);
         break;
       }
     }
@@ -580,7 +574,11 @@ export class Journey {
       await this.moveFront(this.lay.landing! + 0.2);
       await this.leaveWater();
     }
-    const stop = m.place === 'island' || m.place === 'iceberg' || m.place === 'raft' ? 0.1 : -0.7;
+    // 水上的朋友在木筏、冰山、小岛上，停在它们前面一点
+    const stop =
+      m.place === 'iceberg' || m.place === 'raft' || (m.place === 'island' && m.terrain === 'ocean')
+        ? 0.3
+        : -0.7;
     await this.moveFront(this.lay.friendX + stop);
     await this.pickUp();
     return this.finish(front());
@@ -1004,7 +1002,8 @@ export class Journey {
   private spinRotors(on: boolean): void {
     const key = 'rotors';
     if (!on) {
-      this.carrier.userData[key] && this.loops.delete(this.carrier.userData[key]);
+      const fn = this.carrier.userData[key];
+      if (fn) this.loops.delete(fn);
       return;
     }
     const fn = (dt: number): void => {
@@ -1333,7 +1332,7 @@ export class Journey {
     goal.x += 1.5;
     goal.y = Math.max(0.6, goal.y * 0.7 + 0.6) + this.wide * 1.5;
     this.focus.lerp(goal, Math.min(1, dt * 3));
-    const far = (1 + this.wide * 0.5) / Math.min(1, this.camera.aspect / 1.3);
+    const far = (1 + this.wide * 0.5) / Math.pow(Math.min(1, this.camera.aspect / 1.3), 0.6);
     const jitter = this.shake
       ? new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(0.08)
       : new THREE.Vector3();
@@ -1351,6 +1350,3 @@ export class Journey {
 function block(obj: THREE.Object3D): Block {
   return obj.userData['block'] as Block;
 }
-
-/** 零件高度换算到画面上（给外面用） */
-export const partHeight = (kind: PartKind): number => PARTS[kind].height * HEIGHT_SCALE;

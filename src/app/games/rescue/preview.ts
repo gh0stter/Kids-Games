@@ -76,6 +76,7 @@ export class Preview {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
   private readonly turntable = new THREE.Group();
+  private table: THREE.Mesh | null = null;
   private vehicle: THREE.Group | null = null;
   private readonly bear = buildCharacter('bear');
   private keys = new Set<string>();
@@ -97,11 +98,12 @@ export class Preview {
     lights(this.scene);
     // 圆形的木头转台
     const table = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.6, 3.8, 0.3, 40),
+      new THREE.CylinderGeometry(3, 3.15, 0.3, 40),
       new THREE.MeshStandardMaterial({ color: '#e2b47a', roughness: 0.9 }),
     );
     table.position.y = -0.15;
     table.receiveShadow = true;
+    this.table = table;
     this.turntable.add(table);
     this.scene.add(this.turntable);
     this.bear.scale.setScalar(0.55);
@@ -161,7 +163,9 @@ export class Preview {
       this.bear.rotation.y = 0.6;
       seat.add(this.bear);
     }
-    this.zoom = 5 + Math.max(v.length, v.width * 1.3) * 0.75;
+    this.zoom = 6.5 + Math.max(3, v.length, v.width * 1.3) * 0.6;
+    // 车越大转台越大，画面上看起来一样大
+    this.table?.scale.set(this.zoom / 8.3, 1, this.zoom / 8.3);
   }
 
   private readonly onDown = (e: PointerEvent): void => {
@@ -218,7 +222,7 @@ export class Preview {
     const aspect = this.camera.aspect;
     const dist = this.zoom / Math.min(1, aspect);
     this.camera.position.set(0, dist * 0.75, dist);
-    this.camera.lookAt(0, 0.2, 0);
+    this.camera.lookAt(0, 0, 0);
     this.renderer.render(this.scene, this.camera);
   };
 }

@@ -34,6 +34,7 @@ import {
   nameLine,
   Place,
   principles,
+  PLACE_EMOJI,
   PROBLEM_LINES,
   STICKER_BOOK,
   STICKER_ORDER,
@@ -101,6 +102,7 @@ export class Rescue {
   protected readonly stickerOrder = STICKER_ORDER;
   protected readonly terrainEmoji = TERRAIN_EMOJI;
   protected readonly disasterEmoji = DISASTER_EMOJI;
+  protected readonly placeEmoji = PLACE_EMOJI;
   protected readonly tray = TRAY;
   protected readonly rows = [...Array(ROWS).keys()];
   protected readonly cols = [...Array(COLS).keys()];
@@ -241,7 +243,10 @@ export class Rescue {
       place,
       brief: freeBrief(friend),
     });
-    if (this.screen() === 'brief') this.speech.say(this.mission().brief);
+    if (this.screen() === 'brief') {
+      this.journey?.setup(this.vehicle(), this.mission());
+      this.speech.say(this.mission().brief);
+    }
   }
 
   protected openBook(): void {
@@ -435,6 +440,10 @@ export class Rescue {
       if (tries >= 2) this.later(300, () => this.speech.say(info.ask));
       else this.later(300, () => this.speech.say(ALMOST_ALL));
     }
+  }
+
+  protected hintParts(r: Result): PartKind[] {
+    return r.outcome.cause ? CAUSES[r.outcome.cause].parts : [];
   }
 
   protected retry(): void {

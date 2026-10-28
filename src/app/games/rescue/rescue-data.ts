@@ -125,6 +125,16 @@ export const MISSIONS: Mission[] = [
   },
 ];
 
+export const PLACE_EMOJI: Record<Place, string> = {
+  field: '🌼',
+  island: '🏝️',
+  tree: '🌳',
+  barn: '🛖',
+  iceberg: '🧊',
+  raft: '🪵',
+  roof: '🏠',
+};
+
 export const TERRAIN_EMOJI: Record<Terrain, string> = { land: '🌾', ocean: '🌊', coast: '🏖️' };
 export const DISASTER_EMOJI: Record<Disaster, string> = {
   none: '☀️',

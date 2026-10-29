@@ -114,23 +114,23 @@ heavy things don't blow over, but they also sink and can't fly.
 
 **Go!**
 
-| Disaster                 | The idea                                                                         | Ways to build for it                                                        |
-| ------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 🌊 Tsunami               | Float, and you ride over the wave                                                | A hull, or fly over with rotors                                             |
-| ⛈️ Typhoon               | Heavy and wide doesn't tip; a raised crane boom or a helicopter catches the wind | A wide base with rollers or a mixer; a wide boat                            |
-| 🌪️ Tornado               | Hold on to the ground                                                            | Dig the excavator bucket in, hook the crane to the ground, or just be heavy |
-| 🫨 Earthquake            | Long enough to span the crack; low, wide or damped doesn't shake over            | A long vehicle, a wide base, the damper ball                                |
-| 🌀 Whirlpool (free mode) | A long boat lies across the whirlpool and doesn't get sucked in                  | More hull pieces in a row; or fly over                                      |
+| Disaster      | The idea                                                                         | Ways to build for it                                                        |
+| ------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 🌊 Tsunami    | Float, and you ride over the wave                                                | A hull, or fly over with rotors                                             |
+| ⛈️ Typhoon    | Heavy and wide doesn't tip; a raised crane boom or a helicopter catches the wind | A wide base with rollers or a mixer; a wide boat                            |
+| 🌪️ Tornado    | Hold on to the ground                                                            | Dig the excavator bucket in, hook the crane to the ground, or just be heavy |
+| 🫨 Earthquake | Long enough to span the crack; low, wide or damped doesn't shake over            | A long vehicle, a wide base, the damper ball                                |
+| 🌀 Whirlpool  | A long boat lies across the whirlpool and doesn't get sucked in                  | More hull pieces in a row; or fly over                                      |
 
 Some rules hold everywhere: wheels on land; a hull on water, with enough buoyancy for the weight (too heavy and it sinks);
 rotors only lift off if their lift beats the weight; and a friend up a tree or on a roof needs a crane to reach.
 
 During the disaster a tug-of-war bar shows the disaster's strength on the left and the bear on the right. Whichever way the knot moves is winning.
 
-**10 missions plus free play**, from "drive across the meadow to pick up the koala" to "rescue the polar bear from a roof during a big earthquake".
+**11 missions plus free play**, from "drive across the meadow to pick up the koala", through "rescue the polar bear from a roof during a big earthquake", to "build a long boat to get past a whirlpool".
 Free play rolls a random terrain, disaster and friend.
 
-**Failing is fun too.** Vehicles tip over, get sucked into the tornado (and float down under a little umbrella), or sink (and the bear climbs into a life ring). Nothing is scary.
+**Failing is fun too.** Vehicles tip over, get sucked into the tornado (and float down under a little umbrella), spin down a whirlpool (and pop back up, dizzy), or sink (and the bear climbs into a life ring). Nothing is scary.
 When the same thing goes wrong again, the hints get stronger:
 
 1. The first time, it just says what happened: "The wind blew the truck over!"

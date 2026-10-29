@@ -103,9 +103,10 @@ header {
 .path {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(5, auto);
+  grid-template-columns: repeat(6, auto);
   align-content: center;
-  gap: 30px 34px;
+  /* 上下留宽一点：偶数关往下错开，星星不会碰到下一排 */
+  gap: 58px 34px;
 }
 
 .stop {
@@ -676,7 +677,8 @@ header {
     height: 260px;
   }
 
+  /* 竖屏每排 4 个：偶数个一排，偶数关往下错开的规则照样整齐 */
   .path {
-    grid-template-columns: repeat(3, auto);
+    grid-template-columns: repeat(4, auto);
   }
 }

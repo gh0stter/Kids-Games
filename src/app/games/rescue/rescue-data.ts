@@ -123,6 +123,16 @@ export const MISSIONS: Mission[] = [
     place: 'roof',
     brief: '大地震！白熊在屋顶上！',
   },
+  {
+    id: 11,
+    terrain: 'ocean',
+    disaster: 'whirlpool',
+    power: 2,
+    spot: 'water',
+    friend: 'koala',
+    place: 'island',
+    brief: '海上有漩涡！考拉在小岛上！',
+  },
 ];
 
 export const PLACE_EMOJI: Record<Place, string> = {

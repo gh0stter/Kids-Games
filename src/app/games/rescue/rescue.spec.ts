@@ -156,6 +156,13 @@ describe('关卡', () => {
 });
 
 describe('漩涡', () => {
+  it('11 海上漩涡：长长的船卷不进去', () => {
+    assert.equal(cause(simulate(BOAT, mission(11))), 'whirled');
+    assert.equal(cause(simulate(WIDE_BOAT, mission(11))), 'whirled');
+    assert.equal(simulate(LONG_BOAT, mission(11)).ok, true);
+    assert.equal(simulate(HELI, mission(11)).stars, 3);
+  });
+
   const pool = (power: 1 | 2 | 3, terrain: Terrain = 'ocean'): Challenge => ({
     terrain,
     disaster: 'whirlpool',
